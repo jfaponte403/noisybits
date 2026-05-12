@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(npm test *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(npm run *)",
+      "Bash(echo \"TSEXIT:$?\")",
+      "Bash(echo \"TS:$?\")",
+      "Bash(echo \"LINTEXIT:$?\")",
+      "Bash(echo \"LINT:$?\")"
+    ]
+  }
+}
