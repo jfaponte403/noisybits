@@ -13,6 +13,9 @@ coverage/
 .vite/
 *.tsbuildinfo
 
+# local agent workspaces
+.claude/worktrees/
+
 # env
 .env
 .env.*

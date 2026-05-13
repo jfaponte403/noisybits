@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AnnotatedBit, BitType } from "../lib/bitstream/BitArray";
+import type { BitType } from "../lib/bitstream/BitArray";
 
 const CLS: Record<BitType, string> = {
   data: "",
@@ -13,9 +13,11 @@ const WINDOW = 512; // multiple of 64
 
 export function BitGrid({
   bits,
+  metadata,
   emptyHint = "Sin datos.",
 }: {
-  bits: AnnotatedBit[] | null;
+  bits: number[] | null;
+  metadata?: Record<number, BitType>;
   emptyHint?: string;
 }) {
   const [offset, setOffset] = useState(0);
@@ -42,16 +44,19 @@ export function BitGrid({
         <span className="r">{bits.length.toLocaleString()} bits totales</span>
       </div>
       <div className="bitgrid">
-        {view.map((b, i) => (
-          <div
-            key={i}
-            className={"bit " + CLS[b.type]}
-            data-bit-type={b.type}
-            title={`#${start + i} · ${b.type}`}
-          >
-            {b.value}
-          </div>
-        ))}
+        {view.map((val, i) => {
+          const type = metadata?.[start + i] || "data";
+          return (
+            <div
+              key={i}
+              className={"bit " + CLS[type]}
+              data-bit-type={type}
+              title={`#${start + i} · ${type}`}
+            >
+              {val}
+            </div>
+          );
+        })}
       </div>
       {bits.length > WINDOW && (
         <input
@@ -70,17 +75,17 @@ export function BitGrid({
 }
 
 export function Legend() {
-  const items: [string, string][] = [
+  const items: [BitType, string][] = [
     ["data", "dato"],
-    ["r", "redundancia"],
-    ["a", "alterado en canal"],
-    ["c", "corregido"],
-    ["e", "error residual"],
+    ["parity", "redundancia"],
+    ["altered", "alterado en canal"],
+    ["corrected", "corregido"],
+    ["uncorrected", "error residual"],
   ];
   return (
     <div className="legend">
-      {items.map(([cls, label]) => (
-        <span key={cls} className={"chip " + cls}>
+      {items.map(([type, label]) => (
+        <span key={type} className={"chip " + CLS[type]}>
           <span className="sw" />
           {label}
         </span>

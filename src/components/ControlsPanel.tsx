@@ -1,44 +1,115 @@
 import { usePipelineStore } from "../store/pipelineStore";
 import { FileDropzone } from "./FileDropzone";
-import { CODES } from "../lib/encoders/Hamming";
+import { ALL_CODES, getCode } from "../lib/encoders/index";
+import { Download, Play } from "lucide-react";
+import { bitsToBytes, bitsToGroupedBinaryText, unpackBits } from "../lib/bitstream/BitArray";
 
 export function ControlsPanel() {
-  const { codeId, setCodeId, run, running, file } = usePipelineStore();
-  const code = CODES.find((c) => c.id === codeId)!;
+  const { mode, codeId, setCodeId, run, running, file, channel, setChannel, result } = usePipelineStore();
+  const code = getCode(codeId);
+
+  const downloadFile = () => {
+    if (!result) return;
+    const target = mode === "encode" ? result.encoded : result.decoded;
+    const bits = unpackBits(target.bits, target.length);
+    const blob =
+      mode === "encode"
+        ? new Blob([bitsToGroupedBinaryText(bits)], { type: "text/plain;charset=utf-8" })
+        : new Blob([bitsToBytes(bits).buffer as ArrayBuffer], { type: file?.type || "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = mode === "encode" ? `encoded_${file?.name || "file"}.txt` : `decoded_${file?.name || "file"}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="controls">
       <div className="field">
-        <span className="lbl">archivo</span>
+        <span className="lbl">{mode === "encode" ? "Archivo Original" : "Archivo Codificado"}</span>
         <FileDropzone />
       </div>
 
       <div className="field">
-        <span className="lbl">código de canal</span>
+        <span className="lbl">Algoritmo</span>
         <select className="input" value={codeId} onChange={(e) => setCodeId(e.target.value)}>
-          {CODES.map((c) => (
+          {ALL_CODES.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.label} · tasa {fmtRate(c.k, c.n)}
+              {c.label}
             </option>
           ))}
         </select>
         <span className="hint">
-          k = {code.k} bits de dato → n = {code.n} bits ·{" "}
-          {code.extended ? "corrige 1, detecta 2" : "corrige 1 error por bloque"}
+          {`Tasa ${(code.rate).toFixed(3)} · k=${code.k} → n=${code.n}. Salida codificada en .txt binario.`}
         </span>
       </div>
 
-      <button className="btn primary btn-run" onClick={() => void run()} disabled={!file || running}>
-        {running ? "Procesando…" : "Ejecutar pipeline"}
-      </button>
+      {mode === "decode" && (
+        <>
+          <div className="field">
+            <span className="lbl">Probabilidad de Error (BSC)</span>
+            <div className="flex items-center gap-4">
+              <input 
+                type="range" 
+                min="0" 
+                max="0.5" 
+                step="0.001" 
+                className="pager flex-1"
+                value={channel.bscProbability}
+                onChange={(e) => setChannel({ bscProbability: parseFloat(e.target.value) })}
+                style={{ "--p": `${(channel.bscProbability / 0.5) * 100}%` } as React.CSSProperties}
+              />
+              <span className="mono text-tx-2 w-12 text-right">{channel.bscProbability.toFixed(3)}</span>
+            </div>
+          </div>
+
+          <div className="field">
+              <span className="lbl">Inyección de Patrón</span>
+              <div className="grid grid-cols-[1fr_80px] gap-2">
+                <input 
+                    type="text" 
+                    className="input mono" 
+                    placeholder="1010..." 
+                    value={channel.pattern}
+                    onChange={(e) => setChannel({ pattern: e.target.value.replace(/[^01]/g, '') })}
+                />
+                <input 
+                    type="number" 
+                    className="input mono" 
+                    placeholder="Pos" 
+                    value={channel.patternPosition}
+                    onChange={(e) => setChannel({ patternPosition: parseInt(e.target.value, 10) || 0 })}
+                />
+              </div>
+          </div>
+        </>
+      )}
+
+      <div className="pt-4 space-y-3">
+        <button
+          className="btn primary btn-run flex items-center justify-center gap-2"
+          onClick={() => void run()}
+          disabled={!file || running}
+        >
+          {running ? "Procesando…" : (
+              <>
+                <Play size={16} />
+                {mode === "encode" ? "Iniciar Codificación" : "Iniciar Decodificación"}
+              </>
+          )}
+        </button>
+
+        {result && (
+          <button
+            className="btn btn-run flex items-center justify-center gap-2"
+            onClick={downloadFile}
+          >
+            <Download size={16} />
+            {mode === "encode" ? "Descargar Codificado" : "Descargar Reconstruido"}
+          </button>
+        )}
+      </div>
     </div>
   );
-}
-
-function fmtRate(k: number, n: number) {
-  const g = gcd(k, n) || 1;
-  return `${k / g}/${n / g}`;
-}
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
 }

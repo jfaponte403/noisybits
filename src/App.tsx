@@ -1,138 +1,195 @@
-import { usePipelineStore, LAST_STEP } from "./store/pipelineStore";
+import { usePipelineStore } from "./store/pipelineStore";
 import { ControlsPanel } from "./components/ControlsPanel";
-import { ResultsBar } from "./components/MetricsPanel";
 import { BitGrid, Legend } from "./components/BitStreamViewer";
-import { Stepper } from "./components/Stepper";
-import { AlgorithmProcess } from "./components/AlgorithmProcess";
 import { Toast } from "./components/Toast";
-
-// indexed by pipeline step 1..5
-const VIEW: Record<number, { slug: string; title: React.ReactNode; sub: string }> = {
-  1: { slug: "original", title: <>Bits del archivo <span className="accent">original</span></>, sub: "El archivo, byte a byte, expandido a bits MSB → LSB." },
-  2: { slug: "encode", title: <>Bits <span className="accent">codificados</span></>, sub: "Datos más bits de redundancia añadidos por el código." },
-  3: { slug: "channel", title: <>Bits <span className="accent">recibidos</span></>, sub: "La cadena tras pasar por el canal ruidoso." },
-  4: { slug: "decode", title: <>Bits <span className="accent">decodificados</span></>, sub: "Datos recuperados tras corregir errores por síndrome." },
-  5: { slug: "verify", title: <>Comparación <span className="accent">final</span></>, sub: "Datos decodificados frente al original." },
-};
+import { unpackBits } from "./lib/bitstream/BitArray";
+import { MetricsPanel } from "./components/MetricsPanel";
+import { AlgorithmProcess } from "./components/AlgorithmProcess";
+import { BERChart } from "./components/BERChart";
+import { ModePicker } from "./components/ModePicker";
+import { ArrowLeft, Terminal } from "lucide-react";
 
 function Logo() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="#07111c" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 12c2.5 0 2.5-7 5-7s2.5 14 5 14 2.5-7 5-7h3" />
-    </svg>
+    <div className="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#07111c" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 12c2.5 0 2.5-7 5-7s2.5 14 5 14 2.5-7 5-7h3" />
+      </svg>
+    </div>
   );
 }
 
-function StatusPill() {
-  const result = usePipelineStore((s) => s.result);
-  if (!result) return null;
-  const ok = result.metrics.integrity;
+function Footer() {
   return (
-    <span className={"status-pill " + (ok ? "" : "err")}>
-      <span className="led" />
-      {ok ? "íntegro · SHA-256 ok" : "errores residuales"}
-    </span>
+    <footer className="foot mt-auto pt-8">
+      <div className="foot-row">
+        sin backend · ningún archivo sale del navegador · algoritmos LDPC 100% locales
+      </div>
+      <div className="foot-row">
+        <span>© {new Date().getFullYear()} noisybits</span>
+        <span className="dot">·</span>
+        <a href="https://github.com/jfaponte403/noisybits" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+          <Terminal size={12} />
+          GitHub
+        </a>
+      </div>
+    </footer>
   );
 }
 
 export default function App() {
-  const { result, step, running, goNext, goBack, clearFile } = usePipelineStore();
+  const { mode, result, setMode } = usePipelineStore();
 
-  const stepBits =
-    step === 1 ? (result?.original ?? null)
-    : step === 2 ? (result?.encoded ?? null)
-    : step === 3 ? (result?.received ?? null)
-    : step === 4 ? (result?.decoded ?? null)
-    : step === 5 ? (result?.comparison ?? null)
-    : null;
+  if (!mode) {
+    return (
+      <div className="app min-h-screen">
+        <Toast />
+        <header className="topbar">
+          <div className="brand">
+            <Logo />
+            <div>
+              <h1>Channel Coding Visualizer</h1>
+              <div className="sub">
+                instrumento de laboratorio<span className="sep">·</span>precisión técnica<span className="sep">·</span>LDPC
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="flex flex-col items-center justify-center flex-1 gap-8 py-12">
+            <div className="text-center space-y-2">
+                <span className="eyebrow">Bienvenido</span>
+                <h2 className="text-3xl font-bold text-tx-1">Potenciando la <span className="accent">Integridad</span> de Datos</h2>
+                <p className="text-tx-3 max-w-md mx-auto">Explora el funcionamiento de los códigos LDPC (Low-Density Parity-Check) paso a paso.</p>
+            </div>
+            <ModePicker />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
-    <div className="app">
+    <div className="app min-h-screen">
       <Toast />
 
       <header className="topbar">
         <div className="brand">
-          <span className="logo">
-            <Logo />
-          </span>
+          <Logo />
           <div>
             <h1>Channel Coding Visualizer</h1>
             <div className="sub">
-              códigos Hamming<span className="sep">·</span>canal ruidoso<span className="sep">·</span>corrección de errores<span className="sep">·</span>100&nbsp;% en el navegador
+              {mode === "encode" ? "LDPC: Codificación" : "LDPC: Decodificación"}
             </div>
           </div>
         </div>
-        <StatusPill />
+        <div className="flex gap-4">
+          <button onClick={() => setMode(null)} className="btn ghost btn-sm flex items-center gap-2">
+            <ArrowLeft size={14} />
+            Cambiar Proceso
+          </button>
+          <a href="https://github.com/jfaponte403/noisybits" target="_blank" rel="noopener noreferrer" className="btn ghost btn-sm flex items-center gap-2">
+            <Terminal size={16} />
+            GitHub
+          </a>
+        </div>
       </header>
 
-      <nav className="stepper">
-        <Stepper />
-      </nav>
-
-      {step === 0 ? (
-        <section className="card" style={{ maxWidth: 560, margin: "0 auto", width: "100%" }}>
-          <div className="card-head" style={{ marginBottom: 18 }}>
-            <div className="left">
-              <span className="eyebrow">paso 1 · setup</span>
-              <h2>
-                Subí un archivo y elegí la <span className="accent">tasa</span>
-              </h2>
-              <p className="muted">
-                Cargá un archivo, seleccioná un código Hamming con su tasa y ejecutá. Vas a recorrer
-                el pipeline paso a paso.
-              </p>
-            </div>
-          </div>
-          <ControlsPanel />
-        </section>
-      ) : (
-        <>
+      <main className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8 flex-1">
+        <aside className="space-y-6">
           <section className="card">
             <div className="card-head">
               <div className="left">
-                <span className="eyebrow">
-                  paso {step + 1} · {VIEW[step].slug}
-                </span>
-                <h2>{VIEW[step].title}</h2>
-                <p className="muted">{VIEW[step].sub}</p>
+                <span className="eyebrow">{mode === "encode" ? "Configuración" : "Recepción"}</span>
+                <h2>Panel de <span className="accent">Control</span></h2>
               </div>
-              <Legend />
             </div>
-            <BitGrid bits={stepBits} emptyHint="Ejecutá el pipeline para ver este paso." />
+            <ControlsPanel />
           </section>
 
-          <section className="card algo">
-            <AlgorithmProcess />
-          </section>
+          {result && <AlgorithmProcess />}
+        </aside>
 
-          {step === LAST_STEP && result && (
-            <section className="card">
-              <ResultsBar />
-            </section>
+        <div className="space-y-8">
+          {mode === "encode" ? (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                <section className="card">
+                <div className="card-head">
+                    <div className="left">
+                    <span className="eyebrow">Etapa 1</span>
+                    <h2>Bits <span className="accent">Originales</span></h2>
+                    </div>
+                    <Legend />
+                </div>
+                <BitGrid 
+                    bits={result ? unpackBits(result.original.bits, result.original.length) : null} 
+                    metadata={result?.original.metadata}
+                    emptyHint="Carga un archivo y ejecuta la codificación." 
+                />
+                </section>
+
+                <section className="card">
+                <div className="card-head">
+                    <div className="left">
+                    <span className="eyebrow">Etapa 2</span>
+                    <h2>Bits <span className="accent">Codificados</span></h2>
+                    </div>
+                </div>
+                <BitGrid 
+                    bits={result ? unpackBits(result.encoded.bits, result.encoded.length) : null} 
+                    metadata={result?.encoded.metadata}
+                    emptyHint="La redundancia se visualizará aquí tras procesar." 
+                />
+                </section>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                <section className="card">
+                <div className="card-head">
+                    <div className="left">
+                    <span className="eyebrow">Etapa 1</span>
+                    <h2>Bits <span className="accent">Recibidos</span></h2>
+                    </div>
+                    <Legend />
+                </div>
+                <BitGrid 
+                    bits={result ? unpackBits(result.received.bits, result.received.length) : null} 
+                    metadata={result?.received.metadata}
+                    emptyHint="La señal con ruido aparecerá aquí tras procesar." 
+                />
+                </section>
+
+                <section className="card">
+                <div className="card-head">
+                    <div className="left">
+                    <span className="eyebrow">Etapa 2</span>
+                    <h2>Bits <span className="accent">Decodificados</span></h2>
+                    </div>
+                </div>
+                <BitGrid 
+                    bits={result ? unpackBits(result.decoded.bits, result.decoded.length) : null} 
+                    metadata={result?.decoded.metadata}
+                    emptyHint="Resultado de la corrección de errores." 
+                />
+                </section>
+            </div>
           )}
-        </>
-      )}
 
-      <div className="navrow">
-        <button className="btn" onClick={goBack} disabled={step === 0}>
-          ← Atrás
-        </button>
-        {step === 0 ? (
-          <span className="hint">usá el botón “Ejecutar pipeline” de arriba</span>
-        ) : step === LAST_STEP ? (
-          <button className="btn primary" onClick={clearFile}>
-            ↺ Empezar de nuevo
-          </button>
-        ) : (
-          <button className="btn primary" onClick={goNext} disabled={running || result === null}>
-            Siguiente →
-          </button>
-        )}
-      </div>
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-8">
+            <BERChart />
+            <section className="card">
+              <div className="card-head">
+                <div className="left">
+                  <span className="eyebrow">Análisis</span>
+                  <h2>Métricas e <span className="accent">Integridad</span></h2>
+                </div>
+              </div>
+              <MetricsPanel />
+            </section>
+          </div>
+        </div>
+      </main>
 
-      <footer className="foot">
-        sin backend · ningún archivo sale del navegador · SHA-256 vía Web Crypto API
-      </footer>
+      <Footer />
     </div>
   );
 }

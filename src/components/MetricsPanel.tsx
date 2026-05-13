@@ -1,77 +1,66 @@
-import { usePipelineStore, extensionFor } from "../store/pipelineStore";
+import { usePipelineStore } from "../store/pipelineStore";
 
-export function ResultsBar() {
-  const { result, file } = usePipelineStore();
-  if (!result) return null;
-  const m = result.metrics;
+export function MetricsPanel() {
+  const { result, mode } = usePipelineStore();
+
+  if (!result) {
+    return (
+      <div className="text-center py-12 text-tx-3 mono">
+        Sin métricas disponibles. Ejecuta el pipeline para ver los resultados.
+      </div>
+    );
+  }
+
+  const { metrics } = result;
 
   return (
-    <div className="statusbar">
-      <Item k="código" v={result.code.label} />
-      <span className="sep">·</span>
-      <Item k="tasa" v={fmtRate(result.code.k, result.code.n)} />
-      <span className="sep">·</span>
-      <Item k="ber pre" v={pct(m.berPreDecode)} />
-      <span className="sep">·</span>
-      <Item k="ber post" v={pct(m.berPostDecode)} tone={m.berPostDecode ? "err" : undefined} />
-      <span className="sep">·</span>
-      <Item k="bloques corregidos" v={String(m.blocksCorrected)} />
-      <span className="sep">·</span>
-      <Item k="no corregibles" v={String(m.blocksUncorrectable)} tone={m.blocksUncorrectable ? "err" : undefined} />
-      <span className="sep">·</span>
-      <Item k="integridad" v={m.integrity ? "ok" : "falla"} tone={m.integrity ? "ok" : "err"} />
-      <span className="sep">·</span>
-      <Item k="tiempo" v={`${m.elapsedMs.toFixed(0)} ms`} />
+    <div className="space-y-6">
+      <div className="metric-grid">
+        {mode === "decode" && (
+            <>
+                <div className={`metric ${metrics.berPreDecode > 0 ? 'err' : 'ok'}`}>
+                <span className="k">BER Canal</span>
+                <div className="v">{metrics.berPreDecode.toFixed(4)}</div>
+                <div className="d">Errores detectados en la señal</div>
+                </div>
+                <div className={`metric ${metrics.errorsUncorrected === 0 ? 'ok' : 'err'}`}>
+                <span className="k">Corrección</span>
+                <div className="v">{metrics.errorsCorrected}</div>
+                <div className="d">{metrics.errorsUncorrected} chequeos residuales</div>
+                </div>
+            </>
+        )}
+        <div className="metric">
+          <span className="k">Tiempo de Ejecución</span>
+          <div className="v">{metrics.elapsedMs.toFixed(0)} ms</div>
+          <div className="d">Procesamiento en Web Workers</div>
+        </div>
+      </div>
 
-      <div className="dls">
-        <Dl label="encoded.bin" bytes={result.encodedBytes} name="encoded.bin" mime="application/octet-stream" />
-        <Dl label="received.bin" bytes={result.receivedBytes} name="received.bin" mime="application/octet-stream" />
-        <Dl
-          label={`decoded${extensionFor(file?.name ?? "")}`}
-          bytes={result.decodedBytes}
-          name={`decoded${extensionFor(file?.name ?? "")}`}
-          mime={file?.type || "application/octet-stream"}
-        />
+      <div className="space-y-2">
+        <span className="sec-label">Hash de Integridad</span>
+        {mode === "encode" && (
+            <div className="hash">
+                <span className="k">Original (SHA-256):</span>
+                <span className="v">{metrics.originalHash}</span>
+            </div>
+        )}
+        <div className="hash">
+          <span className="k">{mode === "encode" ? "Codificado" : "Reconstruido"}:</span>
+          <span className="v">{metrics.decodedHash}</span>
+        </div>
+        
+        {mode === "decode" && metrics.originalHash !== "N/A" && (
+            <div className={`alert ${metrics.integrity ? 'ok' : 'err'}`}>
+            <span className="ic">{metrics.integrity ? '✓' : '×'}</span>
+            <div>
+                {metrics.integrity 
+                ? 'El archivo reconstruido es idéntico al original.' 
+                : 'Se detectaron discrepancias en la integridad.'}
+            </div>
+            </div>
+        )}
       </div>
     </div>
   );
-}
-
-function Item({ k, v, tone }: { k: string; v: string; tone?: "ok" | "err" }) {
-  return (
-    <span className="item">
-      <span className="k">{k}</span>
-      <span className={"v" + (tone ? " " + tone : "")}>{v}</span>
-    </span>
-  );
-}
-
-function Dl({ label, bytes, name, mime }: { label: string; bytes: Uint8Array; name: string; mime: string }) {
-  return (
-    <button
-      className="btn btn-sm"
-      onClick={() => {
-        const buf = bytes.slice().buffer as ArrayBuffer;
-        const url = URL.createObjectURL(new Blob([buf], { type: mime }));
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = name;
-        a.click();
-        URL.revokeObjectURL(url);
-      }}
-    >
-      ↓ {label}
-    </button>
-  );
-}
-
-function pct(x: number) {
-  return `${(x * 100).toFixed(2)} %`;
-}
-function fmtRate(k: number, n: number) {
-  const g = gcd(k, n) || 1;
-  return `${k / g}/${n / g}`;
-}
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
 }
