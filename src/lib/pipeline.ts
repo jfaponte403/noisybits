@@ -10,7 +10,6 @@ import {
   type EncodedFileMeta,
 } from "./bitstream/BitArray";
 import { type AnyCode } from "./encoders/index";
-import type { LDPCDecodeTrace, LDPCEncodeTrace } from "./encoders/LDPC";
 import { ber, sha256Hex } from "./metrics/metrics";
 
 export interface PipelineResult {
@@ -31,16 +30,27 @@ export interface PipelineResult {
   };
 }
 
-// Instantiate workers
 const encoderWorker = new Worker(new URL("../workers/encoder.worker.ts", import.meta.url), { type: "module" });
 const decoderWorker = new Worker(new URL("../workers/decoder.worker.ts", import.meta.url), { type: "module" });
 
+interface EncodeAllResult {
+  encoded: Bit[];
+  metadata: Record<number, BitType>;
+}
+
+interface DecodeAllResult {
+  decoded: Bit[];
+  metadata: Record<number, BitType>;
+  errorsCorrected: number;
+  errorsUncorrected: number;
+}
+
 interface EncoderWorkerApi {
-  encodeLDPC(code: AnyCode, data: Bit[]): Promise<LDPCEncodeTrace>;
+  encodeAllBlocks(code: AnyCode, paddedData: Bit[]): Promise<EncodeAllResult>;
 }
 
 interface DecoderWorkerApi {
-  decodeLDPC(code: AnyCode, received: Bit[]): Promise<LDPCDecodeTrace>;
+  decodeAllBlocks(code: AnyCode, received: Bit[]): Promise<DecodeAllResult>;
 }
 
 const encoderApi = Comlink.wrap<EncoderWorkerApi>(encoderWorker);
@@ -54,37 +64,23 @@ export async function runEncodePipeline(
   const originalHash = await sha256Hex(fileBytes);
   const dataBits = bytesToBits(fileBytes);
 
-  // 1. ORIGINAL
   const original: BitArray = {
     bits: packBits(dataBits),
     length: dataBits.length,
-    metadata: {}
+    metadata: {},
   };
-  dataBits.forEach((_, i) => (original.metadata![i] = "data"));
+  for (let i = 0; i < dataBits.length; i++) original.metadata![i] = "data";
 
-  // 2. ENCODE
-  const encodedBits: Bit[] = [];
-  const encodedMetadata: Record<number, BitType> = {};
-  
   const k = code.k;
-  const padded = [...dataBits];
-  while (padded.length % k !== 0) padded.push(0);
-  
-  for (let i = 0; i < padded.length; i += k) {
-    const block = padded.slice(i, i + k);
-    const enc = await encoderApi.encodeLDPC(code, block);
-    const offset = encodedBits.length;
-    enc.codeword.forEach((bit: Bit, j: number) => {
-      encodedBits.push(bit);
-      // In our systematic LDPC, first k are data, rest are parity
-      encodedMetadata[offset + j] = j < k ? "data" : "parity";
-    });
-  }
+  const padded: Bit[] = dataBits.slice();
+  while (padded.length % k !== 0) padded.push(0 as Bit);
+
+  const { encoded: encodedBits, metadata: encodedMetadata } = await encoderApi.encodeAllBlocks(code, padded);
 
   const encoded: BitArray = {
     bits: packBits(encodedBits),
     length: encodedBits.length,
-    metadata: encodedMetadata
+    metadata: encodedMetadata,
   };
 
   const t1 = performance.now();
@@ -102,8 +98,8 @@ export async function runEncodePipeline(
       integrity: true,
       originalHash,
       decodedHash: originalHash,
-      elapsedMs: t1 - t0
-    }
+      elapsedMs: t1 - t0,
+    },
   };
 }
 
@@ -123,14 +119,14 @@ export async function runDecodePipeline(
   const original: BitArray = {
     bits: packBits(encodedBits),
     length: encodedBits.length,
-    metadata: {}
+    metadata: {},
   };
   for (let i = 0; i < encodedBits.length; i++) {
-      original.metadata![i] = (i % n) < k ? "data" : "parity";
+    original.metadata![i] = (i % n) < k ? "data" : "parity";
   }
 
   // No channel simulation in decode mode — the uploaded file is taken as the received word.
-  const receivedBits = [...encodedBits];
+  const receivedBits = encodedBits.slice();
   const receivedMetadata: Record<number, BitType> = {};
   for (let i = 0; i < encodedBits.length; i++) {
     receivedMetadata[i] = (i % n) < k ? "data" : "parity";
@@ -139,31 +135,20 @@ export async function runDecodePipeline(
   const received: BitArray = {
     bits: packBits(receivedBits),
     length: receivedBits.length,
-    metadata: receivedMetadata
+    metadata: receivedMetadata,
   };
 
-  // 2. DECODE
-  const decodedBits: Bit[] = [];
-  const decodedMetadata: Record<number, BitType> = {};
-  let errorsCorrected = 0;
-  let errorsUncorrected = 0;
-
-  for (let i = 0; i < receivedBits.length; i += n) {
-      const block = receivedBits.slice(i, i + n);
-      const dec = await decoderApi.decodeLDPC(code, block);
-      errorsCorrected += dec.correctedPositions.length;
-      if (!dec.success) errorsUncorrected += dec.syndrome.filter((bit: number) => bit === 1).length;
-      const offset = decodedBits.length;
-      dec.data.forEach((bit: Bit, j: number) => {
-          decodedBits.push(bit);
-          decodedMetadata[offset + j] = dec.correctedPositions.includes(j) ? "corrected" : "data";
-      });
-  }
+  const {
+    decoded: decodedBits,
+    metadata: decodedMetadata,
+    errorsCorrected,
+    errorsUncorrected,
+  } = await decoderApi.decodeAllBlocks(code, receivedBits);
 
   const decoded: BitArray = {
     bits: packBits(decodedBits),
     length: decodedBits.length,
-    metadata: decodedMetadata
+    metadata: decodedMetadata,
   };
 
   const decodedBytes = bitsToBytes(decodedBits);
@@ -182,14 +167,11 @@ export async function runDecodePipeline(
       berPostDecode: 0,
       errorsCorrected,
       errorsUncorrected,
-      // "integrity" here means the decoder converged: every parity check is satisfied
-      // in every block. The original file is not available in decode mode, so this is
-      // the strongest guarantee we can report locally.
       integrity: errorsUncorrected === 0,
       originalHash: "N/A",
       decodedHash,
-      elapsedMs: t1 - t0
-    }
+      elapsedMs: t1 - t0,
+    },
   };
 }
 

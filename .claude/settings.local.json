@@ -15,7 +15,8 @@
       "Bash(node *)",
       "Bash(python -)",
       "Bash(npx eslint *)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx vitest *)"
     ]
   }
 }

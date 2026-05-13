@@ -10,9 +10,50 @@ import { ModePicker } from "./components/ModePicker";
 import { LDPCExplainer, LearnButton } from "./components/LDPCExplainer";
 import { InspectorDrawer } from "./components/InspectorDrawer";
 import { getCode } from "./lib/encoders/index";
-import { Activity, ArrowLeft, Check, Download, FileCode2, Gauge, RadioTower, Terminal } from "lucide-react";
-import { useState } from "react";
+import { Activity, BookOpen, Check, Download, FileCode2, Gauge, RadioTower, Terminal } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import type React from "react";
+import type { AppMode } from "./store/pipelineStore";
+
+const SECTION_IDS = ["sec-entrada", "sec-ldpc", "sec-redundancia", "sec-descarga"] as const;
+type SectionId = (typeof SECTION_IDS)[number];
+
+function scrollToSection(id: SectionId) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function useScrollSpy(ids: readonly string[]): number | null {
+  const [active, setActive] = useState<number | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const resolve = () =>
+      ids
+        .map((id, i) => {
+          const el = document.getElementById(id);
+          return el ? { el, i } : null;
+        })
+        .filter((x): x is { el: HTMLElement; i: number } => x !== null);
+
+    let tracked = resolve();
+    if (tracked.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      () => {
+        const ranked = tracked
+          .map((t) => ({ i: t.i, rect: t.el.getBoundingClientRect() }))
+          .filter((t) => t.rect.bottom > 120 && t.rect.top < window.innerHeight * 0.5)
+          .sort((a, b) => a.rect.top - b.rect.top);
+        if (ranked[0]) setActive(ranked[0].i);
+      },
+      { rootMargin: "-30% 0px -55% 0px", threshold: [0, 0.25, 0.5, 1] }
+    );
+    tracked.forEach((t) => observer.observe(t.el));
+    return () => observer.disconnect();
+  }, [ids.join("|")]);
+  return active;
+}
 
 function Logo() {
   return (
@@ -21,6 +62,24 @@ function Logo() {
         <path d="M2 12c2.5 0 2.5-7 5-7s2.5 14 5 14 2.5-7 5-7h3" />
       </svg>
     </div>
+  );
+}
+
+function Brand({ subtitle, onHome }: { subtitle: React.ReactNode; onHome?: () => void }) {
+  const content = (
+    <>
+      <Logo />
+      <div>
+        <h1>Channel Coding Visualizer</h1>
+        <div className="sub">{subtitle}</div>
+      </div>
+    </>
+  );
+  if (!onHome) return <div className="brand">{content}</div>;
+  return (
+    <button type="button" className="brand brand-link" onClick={onHome} aria-label="Volver al inicio">
+      {content}
+    </button>
   );
 }
 
@@ -57,8 +116,38 @@ function StatusPill({
   );
 }
 
-function JourneyStrip() {
-  const { mode, file, result, running, codeId, setInspect } = usePipelineStore();
+function ModeToggle() {
+  const { mode, setMode } = usePipelineStore();
+  if (!mode) return null;
+  const select = (m: AppMode) => {
+    if (m !== mode) setMode(m);
+  };
+  return (
+    <div className="mode-toggle" role="tablist" aria-label="Modo del pipeline">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === "encode"}
+        data-active={mode === "encode"}
+        onClick={() => select("encode")}
+      >
+        Codificar
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === "decode"}
+        data-active={mode === "decode"}
+        onClick={() => select("decode")}
+      >
+        Decodificar
+      </button>
+    </div>
+  );
+}
+
+function JourneyStrip({ activeSection }: { activeSection: number | null }) {
+  const { mode, file, result, running, codeId } = usePipelineStore();
   const code = getCode(codeId);
   const stages = mode === "encode"
     ? [
@@ -75,27 +164,25 @@ function JourneyStrip() {
       ];
 
   return (
-    <section className="journey" aria-label="flujo del pipeline">
+    <nav className="journey" aria-label="navegación del pipeline">
       {stages.map((stage, index) => {
         const Icon = stage.icon;
-        const open = () => mode && setInspect({ kind: "stage", mode, index });
+        const sectionId = SECTION_IDS[index];
+        const isCurrent = activeSection === index;
         return (
-          <div
+          <a
             className="journey-step"
             data-state={stage.state}
+            data-current={isCurrent ? "true" : undefined}
             key={stage.title}
-            role="button"
-            tabIndex={0}
-            onClick={open}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                open();
-              }
+            href={`#${sectionId}`}
+            aria-current={isCurrent ? "true" : undefined}
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection(sectionId);
             }}
-            aria-label={`Explicar etapa: ${stage.title}`}
           >
-            <div className="journey-node">
+            <div className="journey-node" aria-hidden="true">
               {stage.state === "done" ? <Check size={14} /> : <Icon size={15} />}
             </div>
             <div className="journey-copy">
@@ -103,10 +190,10 @@ function JourneyStrip() {
               <strong>{stage.title}</strong>
               <span>{stage.detail}</span>
             </div>
-          </div>
+          </a>
         );
       })}
-    </section>
+    </nav>
   );
 }
 
@@ -142,30 +229,62 @@ function FlowCard({
   );
 }
 
+function LearnOverlay({ onClose }: { onClose: () => void }) {
+  const { setMode } = usePipelineStore();
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  return (
+    <div className="learn-overlay" role="dialog" aria-modal="true" aria-label="Aprender LDPC">
+      <div className="learn-overlay-backdrop" onClick={onClose} />
+      <div className="learn-overlay-panel" role="document">
+        <LDPCExplainer
+          onBack={onClose}
+          onStart={(m) => {
+            onClose();
+            setMode(m);
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const { mode, result, setMode, file, running, codeId, setInspect } = usePipelineStore();
   const [showLearn, setShowLearn] = useState(false);
+  const activeSection = useScrollSpy(SECTION_IDS);
   const code = getCode(codeId);
+  const openLearn = useCallback(() => setShowLearn(true), []);
+  const closeLearn = useCallback(() => setShowLearn(false), []);
 
   if (!mode) {
     return (
       <div className="app min-h-screen">
         <Toast />
         <header className="topbar">
-          <div className="brand">
-            <Logo />
-            <div>
-              <h1>Channel Coding Visualizer</h1>
-              <div className="sub">
+          <Brand
+            subtitle={
+              <>
                 instrumento de laboratorio<span className="sep">·</span>precisión técnica<span className="sep">·</span>LDPC
-              </div>
-            </div>
-          </div>
+              </>
+            }
+          />
         </header>
         {showLearn ? (
           <LDPCExplainer
-            onBack={() => setShowLearn(false)}
-            onStart={(m) => { setShowLearn(false); setMode(m); }}
+            onBack={closeLearn}
+            onStart={(m) => { closeLearn(); setMode(m); }}
           />
         ) : (
           <main className="home-shell">
@@ -176,7 +295,7 @@ export default function App() {
               </div>
               <div className="home-picker">
                 <ModePicker />
-                <LearnButton onClick={() => setShowLearn(true)} />
+                <LearnButton onClick={openLearn} />
               </div>
           </main>
         )}
@@ -189,25 +308,27 @@ export default function App() {
     <div className="app min-h-screen">
       <Toast />
       <InspectorDrawer />
+      {showLearn && <LearnOverlay onClose={closeLearn} />}
 
       <header className="topbar">
-        <div className="brand">
-          <Logo />
-          <div>
-            <h1>Channel Coding Visualizer</h1>
-            <div className="sub">
-              {mode === "encode" ? "LDPC: Codificación" : "LDPC: Decodificación"}
-            </div>
-          </div>
-        </div>
+        <Brand
+          onHome={() => setMode(null)}
+          subtitle={mode === "encode" ? "LDPC: Codificación" : "LDPC: Decodificación"}
+        />
+        <ModeToggle />
         <div className="top-actions">
           <StatusPill
             state={running ? "running" : result ? "done" : file ? "ready" : "idle"}
             label={running ? "procesando" : result ? "pipeline completo" : file ? "archivo listo" : "sin archivo"}
           />
-          <button onClick={() => setMode(null)} className="btn ghost btn-sm flex items-center gap-2">
-            <ArrowLeft size={14} />
-            Cambiar
+          <button
+            type="button"
+            onClick={openLearn}
+            className="btn ghost btn-sm flex items-center gap-2"
+            aria-label="Abrir guía de aprendizaje"
+          >
+            <BookOpen size={14} />
+            Aprender
           </button>
           <a href="https://github.com/jfaponte403/noisybits" target="_blank" rel="noopener noreferrer" className="btn ghost btn-sm flex items-center gap-2">
             <Terminal size={16} />
@@ -216,10 +337,10 @@ export default function App() {
         </div>
       </header>
 
-      <JourneyStrip />
+      <JourneyStrip activeSection={activeSection} />
 
       <main className="workspace">
-        <aside className="control-rail">
+        <aside id="sec-entrada" className="control-rail anchor">
           <section className="card control-card">
             <div className="card-head">
               <div className="left">
@@ -233,10 +354,12 @@ export default function App() {
         </aside>
 
         <div className="stage-area">
-          <AlgorithmProcess />
+          <div id="sec-ldpc" className="anchor">
+            <AlgorithmProcess />
+          </div>
 
           {mode === "encode" ? (
-            <div className="flow-grid">
+            <div id="sec-redundancia" className="flow-grid anchor">
                 <FlowCard
                   eyebrow="paso 1 · entrada"
                   title="Bits"
@@ -269,7 +392,7 @@ export default function App() {
                 </FlowCard>
             </div>
           ) : (
-            <div className="flow-grid">
+            <div id="sec-redundancia" className="flow-grid anchor">
                 <FlowCard
                   eyebrow="paso 1 · canal"
                   title="Bits"
@@ -303,7 +426,7 @@ export default function App() {
             </div>
           )}
 
-          <div className="analysis-grid">
+          <div id="sec-descarga" className="analysis-grid anchor">
             <BERChart />
             <section className="card">
               <div className="card-head">

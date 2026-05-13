@@ -54,7 +54,12 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   dismissToast: () => set({ toast: null }),
   setInspect: (inspect) => set({ inspect }),
 
-  setMode: (mode) => set({ mode, file: null, result: null, inspect: null }),
+  setMode: (mode) =>
+    set((s) => {
+      if (s.mode === mode) return {};
+      if (mode === null) return { mode: null, file: null, result: null, inspect: null };
+      return { mode, file: s.mode === null ? null : s.file, result: null, inspect: null };
+    }),
 
   setCodeId: (codeId) => set({ codeId, result: null, inspect: null }),
 
