@@ -1169,6 +1169,230 @@ select.input option {
   color: var(--tx-3);
 }
 
+/* ---------- home picker (mode picker + learn) ---------- */
+.home-picker {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+}
+.learn-card-btn .mc-ic {
+  background: color-mix(in oklab, var(--warn) 18%, var(--bg-1));
+  border-color: color-mix(in oklab, var(--warn) 45%, transparent);
+  color: var(--warn);
+}
+
+/* ---------- learn / landing page ---------- */
+.learn-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding-top: 16px;
+  min-width: 0;
+}
+.learn-back {
+  align-self: flex-start;
+}
+.learn-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 780px;
+}
+.learn-hero h2 {
+  font-size: 36px;
+  line-height: 1.15;
+  margin: 0;
+  color: var(--tx-1);
+}
+.learn-hero p {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--tx-2);
+  margin: 0;
+}
+.learn-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.learn-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.learn-card h3 {
+  font-size: 16px;
+  margin: 2px 0 4px;
+  color: var(--tx-1);
+}
+.learn-card p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--tx-2);
+  margin: 0;
+}
+.learn-formula {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--bg-1);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-sm);
+  color: var(--signal);
+  font-size: 13px;
+  text-align: center;
+}
+.learn-example {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.explainer-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+.explainer-row-lbl {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--tx-3);
+}
+.explainer-bits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.explainer-bits .bit-chip {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  font-family: var(--ff-mono);
+  font-size: 14px;
+}
+.explainer-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0 4px 8px;
+  color: var(--tx-3);
+  font-size: 13px;
+}
+.explainer-step-arrow {
+  font-family: var(--ff-mono);
+  font-size: 16px;
+  color: var(--signal);
+}
+.explainer-note {
+  font-size: 12.5px;
+  color: var(--tx-3);
+  margin: 0;
+  padding-left: 124px;
+}
+.rates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.rate-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  min-width: 0;
+}
+.rate-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.rate-head strong {
+  font-size: 13.5px;
+  color: var(--tx-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rate-pill {
+  flex: 0 0 auto;
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  color: var(--signal);
+  background: var(--signal-soft);
+  border: 1px solid var(--signal-edge);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.rate-facts {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.rate-facts div {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+.rate-facts dt {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tx-3);
+}
+.rate-facts dd {
+  margin: 0;
+  color: var(--tx-2);
+}
+.strength-alta { color: oklch(86% 0.16 155); font-weight: 600; }
+.strength-media { color: oklch(86% 0.12 75); font-weight: 600; }
+.strength-baja { color: oklch(84% 0.16 20); font-weight: 600; }
+.rate-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--tx-3);
+  border-top: 1px solid var(--line-1);
+  padding-top: 8px;
+}
+.learn-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.learn-cta h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--tx-1);
+}
+.learn-cta .mode-picker {
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 900px) {
+  .learn-grid {
+    grid-template-columns: 1fr;
+  }
+  .explainer-note {
+    padding-left: 0;
+  }
+  .explainer-row {
+    grid-template-columns: 1fr;
+  }
+  .learn-hero h2 {
+    font-size: 28px;
+  }
+  .learn-cta .mode-picker {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- file drop ---------- */
 .drop {
   border: 1.5px dashed var(--line-3);

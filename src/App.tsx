@@ -7,9 +7,11 @@ import { MetricsPanel } from "./components/MetricsPanel";
 import { AlgorithmProcess } from "./components/AlgorithmProcess";
 import { BERChart } from "./components/BERChart";
 import { ModePicker } from "./components/ModePicker";
+import { LDPCExplainer, LearnButton } from "./components/LDPCExplainer";
 import { InspectorDrawer } from "./components/InspectorDrawer";
 import { getCode } from "./lib/encoders/index";
 import { Activity, ArrowLeft, Check, Download, FileCode2, Gauge, RadioTower, Terminal } from "lucide-react";
+import { useState } from "react";
 import type React from "react";
 
 function Logo() {
@@ -142,6 +144,7 @@ function FlowCard({
 
 export default function App() {
   const { mode, result, setMode, file, running, codeId, setInspect } = usePipelineStore();
+  const [showLearn, setShowLearn] = useState(false);
   const code = getCode(codeId);
 
   if (!mode) {
@@ -159,14 +162,24 @@ export default function App() {
             </div>
           </div>
         </header>
-        <main className="home-shell">
-            <div className="home-intro">
-                <span className="eyebrow">laboratorio LDPC</span>
-                <h2>Visualizá cómo un archivo gana <span className="accent">redundancia</span>, atraviesa ruido y vuelve a verificarse.</h2>
-                <p>Elegí una dirección del pipeline. Cada etapa muestra qué bits cambian, qué control se agregó y qué evidencia deja el algoritmo.</p>
-            </div>
-            <ModePicker />
-        </main>
+        {showLearn ? (
+          <LDPCExplainer
+            onBack={() => setShowLearn(false)}
+            onStart={(m) => { setShowLearn(false); setMode(m); }}
+          />
+        ) : (
+          <main className="home-shell">
+              <div className="home-intro">
+                  <span className="eyebrow">laboratorio LDPC</span>
+                  <h2>Visualizá cómo un archivo gana <span className="accent">redundancia</span>, atraviesa ruido y vuelve a verificarse.</h2>
+                  <p>Elegí una dirección del pipeline. Cada etapa muestra qué bits cambian, qué control se agregó y qué evidencia deja el algoritmo.</p>
+              </div>
+              <div className="home-picker">
+                <ModePicker />
+                <LearnButton onClick={() => setShowLearn(true)} />
+              </div>
+          </main>
+        )}
         <Footer />
       </div>
     );
