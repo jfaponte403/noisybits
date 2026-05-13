@@ -88,7 +88,7 @@ export function AlgorithmProcess() {
   const phaseLabel = running ? "en ejecución" : result ? "etapas completadas" : isReady ? "listo para ejecutar" : "pendiente de archivo";
 
   return (
-    <div className="algo">
+    <section className="card algo">
       <div className="process-kicker">
         <span className="tag">paso a paso</span>
         <span className="process-count">{phaseLabel}</span>
@@ -171,6 +171,6 @@ export function AlgorithmProcess() {
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }

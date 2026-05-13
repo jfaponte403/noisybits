@@ -137,9 +137,9 @@ body::before {
 
 /* ---------- layout ---------- */
 .app {
-  max-width: 1280px;
+  max-width: 1480px;
   margin: 0 auto;
-  padding: 28px 32px 80px;
+  padding: 28px 40px 80px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -293,8 +293,13 @@ body::before {
 .control-rail {
   position: sticky;
   top: 20px;
+  align-self: start;
   display: grid;
   gap: 18px;
+  min-width: 0;
+}
+.control-rail > * {
+  min-width: 0;
 }
 .stage-area {
   min-width: 0;
@@ -313,14 +318,7 @@ body::before {
   box-shadow: var(--sh-card);
 }
 .journey::before {
-  content: "";
-  position: absolute;
-  left: 11%;
-  right: 11%;
-  top: 34px;
-  height: 1px;
-  background: linear-gradient(90deg, var(--signal-edge), var(--line-2), var(--line-1));
-  pointer-events: none;
+  content: none;
 }
 .journey-step {
   position: relative;
@@ -426,7 +424,7 @@ body::before {
 /* ---------- card ---------- */
 .card {
   background: linear-gradient(180deg, var(--bg-2), var(--bg-1));
-  border: 1px solid var(--line-1);
+  border: 1px solid var(--line-2);
   border-radius: var(--r-lg);
   padding: 22px 24px;
   box-shadow: var(--sh-card);
@@ -583,13 +581,18 @@ body::before {
 }
 .bitgrid {
   display: grid;
-  grid-template-columns: repeat(64, 1fr);
+  grid-template-columns: repeat(64, minmax(0, 1fr));
   gap: 3px;
+  min-width: 0;
+  overflow: hidden;
 }
 .bitgrid .bit {
   aspect-ratio: 1 / 1;
   border-radius: 3px;
   font-size: 9px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
 }
 .bitgrid-empty {
   color: var(--tx-3);
@@ -678,14 +681,7 @@ body::before {
   margin-top: 18px;
 }
 .process-stepper::before {
-  content: "";
-  position: absolute;
-  left: 18px;
-  top: 24px;
-  bottom: 24px;
-  width: 2px;
-  background: linear-gradient(180deg, var(--ok), var(--signal-edge), var(--line-1));
-  opacity: 0.55;
+  content: none;
 }
 .process-step {
   position: relative;
@@ -867,19 +863,22 @@ code.inl {
   font-weight: 700;
 }
 .alert.ok {
-  background: var(--ok-bg);
-  color: oklch(86% 0.12 155);
-  border: 1px solid color-mix(in oklab, var(--ok) 35%, transparent);
+  background: oklch(72% 0.16 155 / 0.22);
+  color: oklch(92% 0.12 155);
+  border: 1px solid color-mix(in oklab, var(--ok) 55%, transparent);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 .alert.warn {
-  background: var(--warn-bg);
-  color: oklch(87% 0.13 75);
-  border: 1px solid color-mix(in oklab, var(--warn) 35%, transparent);
+  background: oklch(75% 0.16 65 / 0.22);
+  color: oklch(93% 0.13 75);
+  border: 1px solid color-mix(in oklab, var(--warn) 55%, transparent);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 .alert.err {
-  background: var(--err-bg);
-  color: oklch(83% 0.14 20);
-  border: 1px solid color-mix(in oklab, var(--err) 35%, transparent);
+  background: oklch(70% 0.2 18 / 0.22);
+  color: oklch(90% 0.14 20);
+  border: 1px solid color-mix(in oklab, var(--err) 55%, transparent);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 
 /* metrics */
@@ -1285,32 +1284,35 @@ select.input option {
 /* ---------- toast ---------- */
 .toast {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 50;
+  bottom: 24px;
+  right: 24px;
+  z-index: 70;
   display: flex;
   gap: 10px;
   align-items: center;
   max-width: 380px;
   padding: 12px 16px;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   font-size: 13.5px;
+  font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 18px 40px -14px rgba(0, 0, 0, 0.7);
 }
 .toast .ic {
   font-family: var(--ff-mono);
   font-weight: 700;
 }
 .toast.ok {
-  background: var(--ok-bg);
-  color: oklch(87% 0.12 155);
-  border: 1px solid color-mix(in oklab, var(--ok) 40%, transparent);
+  background: color-mix(in oklab, oklch(40% 0.12 155) 92%, transparent);
+  color: oklch(95% 0.08 155);
+  border: 1px solid color-mix(in oklab, var(--ok) 70%, transparent);
 }
 .toast.err {
-  background: var(--err-bg);
-  color: oklch(84% 0.14 20);
-  border: 1px solid color-mix(in oklab, var(--err) 40%, transparent);
+  background: color-mix(in oklab, oklch(38% 0.16 18) 92%, transparent);
+  color: oklch(94% 0.08 20);
+  border: 1px solid color-mix(in oklab, var(--err) 70%, transparent);
 }
 .empty-panel {
   min-height: 180px;

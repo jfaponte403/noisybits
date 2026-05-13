@@ -60,19 +60,19 @@ export function BERChart() {
 
       <div className="h-[300px] w-full" style={{ minHeight: 300, minWidth: 0 }}>
         <ResponsiveContainer width="100%" height="100%" minHeight={300}>
-          <LineChart data={data} margin={{ top: 8, right: 16, bottom: 16, left: 4 }}>
+          <LineChart data={data} margin={{ top: 24, right: 16, bottom: 48, left: 16 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--line-1)" />
             <XAxis
               dataKey="p"
               stroke="var(--tx-3)"
               tick={{ fill: "var(--tx-3)", fontSize: 11 }}
-              label={{ value: "probabilidad de error del canal (p)", position: "insideBottom", offset: -8, fill: "var(--tx-3)", fontSize: 11 }}
+              label={{ value: "probabilidad de error del canal (p)", position: "insideBottom", offset: -12, fill: "var(--tx-3)", fontSize: 11 }}
             />
             <YAxis
               stroke="var(--tx-3)"
               tick={{ fill: "var(--tx-3)", fontSize: 11 }}
               tickFormatter={(v: number) => v.toFixed(2)}
-              label={{ value: "BER en los datos", angle: -90, position: "insideLeft", fill: "var(--tx-3)", fontSize: 11 }}
+              label={{ value: "BER en los datos", angle: -90, position: "insideLeft", offset: 0, dy: 50, fill: "var(--tx-3)", fontSize: 11 }}
             />
             <Tooltip
               contentStyle={{ backgroundColor: "var(--bg-2)", borderColor: "var(--line-2)", color: "var(--tx-1)", borderRadius: 8, fontSize: 12 }}
@@ -80,7 +80,7 @@ export function BERChart() {
               formatter={((v: unknown) => Number(v).toFixed(4)) as never}
               labelFormatter={(l) => `p = ${l}`}
             />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
             <Line type="monotone" dataKey="preBER" name="sin codificar" stroke="var(--err)" strokeWidth={2} dot={false} />
             <Line type="monotone" dataKey="postBER" name="con LDPC" stroke="var(--signal)" strokeWidth={2} dot={{ r: 2 }} />
             {livePre !== null && (
