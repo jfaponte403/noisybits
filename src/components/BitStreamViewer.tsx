@@ -15,10 +15,12 @@ export function BitGrid({
   bits,
   metadata,
   emptyHint = "Sin datos.",
+  onBitClick,
 }: {
   bits: number[] | null;
   metadata?: Record<number, BitType>;
   emptyHint?: string;
+  onBitClick?: (globalIndex: number) => void;
 }) {
   const [offset, setOffset] = useState(0);
 
@@ -43,16 +45,27 @@ export function BitGrid({
         </span>
         <span className="r">{bits.length.toLocaleString()} bits totales</span>
       </div>
-      <div className="bitgrid">
+      <div className={"bitgrid" + (onBitClick ? " interactive" : "")}>
         {view.map((val, i) => {
-          const type = metadata?.[start + i] || "data";
+          const gi = start + i;
+          const type = metadata?.[gi] || "data";
+          const cls = "bit " + CLS[type];
+          if (onBitClick) {
+            return (
+              <button
+                key={i}
+                type="button"
+                className={cls}
+                data-bit-type={type}
+                title={`#${gi} · ${type} · clic para inspeccionar`}
+                onClick={() => onBitClick(gi)}
+              >
+                {val}
+              </button>
+            );
+          }
           return (
-            <div
-              key={i}
-              className={"bit " + CLS[type]}
-              data-bit-type={type}
-              title={`#${start + i} · ${type}`}
-            >
+            <div key={i} className={cls} data-bit-type={type} title={`#${gi} · ${type}`}>
               {val}
             </div>
           );

@@ -210,10 +210,13 @@ export async function runDecodePipeline(
     decoded,
     metrics: {
       berPreDecode: ber(encodedBits, receivedBits),
-      berPostDecode: 0, 
+      berPostDecode: 0,
       errorsCorrected,
       errorsUncorrected,
-      integrity: false,
+      // "integrity" here means the decoder converged: every parity check is satisfied
+      // in every block. The original file is not available in decode mode, so this is
+      // the strongest guarantee we can report locally.
+      integrity: errorsUncorrected === 0,
       originalHash: "N/A",
       decodedHash,
       elapsedMs: t1 - t0

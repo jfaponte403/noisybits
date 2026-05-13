@@ -10,7 +10,12 @@
       "Bash(echo \"TSEXIT:$?\")",
       "Bash(echo \"TS:$?\")",
       "Bash(echo \"LINTEXIT:$?\")",
-      "Bash(echo \"LINT:$?\")"
+      "Bash(echo \"LINT:$?\")",
+      "Skill(impeccable)",
+      "Bash(node *)",
+      "Bash(python -)",
+      "Bash(npx eslint *)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }

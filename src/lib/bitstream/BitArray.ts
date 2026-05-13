@@ -40,7 +40,17 @@ export function unpackBits(bytes: Uint8Array, length: number): Bit[] {
   return bits;
 }
 
-export function bitsToGroupedBinaryText(bits: Bit[], groupSize = 3): string {
+/** Unpack `count` bits starting at absolute bit index `start` (MSB first). */
+export function unpackBitsRange(bytes: Uint8Array, start: number, count: number): Bit[] {
+  const bits: Bit[] = [];
+  for (let i = start; i < start + count; i++) {
+    const byte = bytes[i >> 3] ?? 0;
+    bits.push((byte >> (7 - (i & 7))) & 1);
+  }
+  return bits;
+}
+
+export function bitsToGroupedBinaryText(bits: Bit[], groupSize = 8): string {
   const groups: string[] = [];
   for (let i = 0; i < bits.length; i += groupSize) {
     groups.push(bits.slice(i, i + groupSize).join(""));
@@ -52,8 +62,4 @@ export function parseGroupedBinaryText(text: string): Bit[] | null {
   const compact = text.replace(/\s+/g, "");
   if (!compact || /[^01]/.test(compact)) return null;
   return Array.from(compact, (char) => Number(char) as Bit);
-}
-
-export function bytesToGroupedBinaryText(bytes: Uint8Array, length: number, groupSize = 3): string {
-  return bitsToGroupedBinaryText(unpackBits(bytes, length), groupSize);
 }

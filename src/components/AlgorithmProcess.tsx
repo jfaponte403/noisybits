@@ -11,7 +11,7 @@ interface ProcessStep {
 }
 
 export function AlgorithmProcess() {
-  const { codeId, result, mode, file, running } = usePipelineStore();
+  const { codeId, result, mode, file, running, setInspect } = usePipelineStore();
   const code = getCode(codeId);
   const originalBits = result?.original.length ?? 0;
   const encodedBits = result?.encoded.length ?? 0;
@@ -105,8 +105,23 @@ export function AlgorithmProcess() {
       <div className="process-stepper" aria-label={`Stepper de ${mode === "encode" ? "codificación" : "decodificación"}`}>
         {steps.map((step, index) => {
           const state = result ? "done" : running && index === 1 ? "active" : index === 0 && isReady ? "active" : "upcoming";
+          const open = () => mode && setInspect({ kind: "stage", mode, index });
           return (
-          <div className="process-step" key={step.title} data-state={state}>
+          <div
+            className="process-step"
+            key={step.title}
+            data-state={state}
+            role="button"
+            tabIndex={0}
+            onClick={open}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                open();
+              }
+            }}
+            aria-label={`Explicar etapa: ${step.title}`}
+          >
             <div className="process-node" aria-hidden="true">
               <span>{index + 1}</span>
               {state === "done" && <CheckCircle2 size={13} />}
@@ -131,6 +146,7 @@ export function AlgorithmProcess() {
                   <dd>{result ? step.evidence : "Pendiente de datos reales."}</dd>
                 </div>
               </dl>
+              <span className="process-cta">Ver explicación detallada →</span>
             </div>
           </div>
         );

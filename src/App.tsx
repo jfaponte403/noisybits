@@ -7,6 +7,7 @@ import { MetricsPanel } from "./components/MetricsPanel";
 import { AlgorithmProcess } from "./components/AlgorithmProcess";
 import { BERChart } from "./components/BERChart";
 import { ModePicker } from "./components/ModePicker";
+import { InspectorDrawer } from "./components/InspectorDrawer";
 import { getCode } from "./lib/encoders/index";
 import { Activity, ArrowLeft, Check, Download, FileCode2, Gauge, RadioTower, Terminal } from "lucide-react";
 import type React from "react";
@@ -25,7 +26,7 @@ function Footer() {
   return (
     <footer className="foot mt-auto pt-8">
       <div className="foot-row">
-        sin backend · ningún archivo sale del navegador · algoritmos LDPC 100% locales
+        sin backend · ningún archivo sale del navegador · algoritmo LDPC, 100% local
       </div>
       <div className="foot-row">
         <span>© {new Date().getFullYear()} noisybits</span>
@@ -55,7 +56,7 @@ function StatusPill({
 }
 
 function JourneyStrip() {
-  const { mode, file, result, running, codeId } = usePipelineStore();
+  const { mode, file, result, running, codeId, setInspect } = usePipelineStore();
   const code = getCode(codeId);
   const stages = mode === "encode"
     ? [
@@ -75,8 +76,23 @@ function JourneyStrip() {
     <section className="journey" aria-label="flujo del pipeline">
       {stages.map((stage, index) => {
         const Icon = stage.icon;
+        const open = () => mode && setInspect({ kind: "stage", mode, index });
         return (
-          <div className="journey-step" data-state={stage.state} key={stage.title}>
+          <div
+            className="journey-step"
+            data-state={stage.state}
+            key={stage.title}
+            role="button"
+            tabIndex={0}
+            onClick={open}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                open();
+              }
+            }}
+            aria-label={`Explicar etapa: ${stage.title}`}
+          >
             <div className="journey-node">
               {stage.state === "done" ? <Check size={14} /> : <Icon size={15} />}
             </div>
@@ -125,7 +141,7 @@ function FlowCard({
 }
 
 export default function App() {
-  const { mode, result, setMode, file, running, codeId } = usePipelineStore();
+  const { mode, result, setMode, file, running, codeId, setInspect } = usePipelineStore();
   const code = getCode(codeId);
 
   if (!mode) {
@@ -159,6 +175,7 @@ export default function App() {
   return (
     <div className="app min-h-screen">
       <Toast />
+      <InspectorDrawer />
 
       <header className="topbar">
         <div className="brand">
@@ -215,10 +232,11 @@ export default function App() {
                   legend
                   state={result ? "done" : file ? "live" : "waiting"}
                 >
-                <BitGrid 
-                    bits={result ? unpackBits(result.original.bits, result.original.length) : null} 
+                <BitGrid
+                    bits={result ? unpackBits(result.original.bits, result.original.length) : null}
                     metadata={result?.original.metadata}
-                    emptyHint="Carga un archivo y ejecuta la codificación." 
+                    emptyHint="Carga un archivo y ejecuta la codificación."
+                    onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "encode", which: "original", index: i }) : undefined}
                 />
                 </FlowCard>
 
@@ -229,10 +247,11 @@ export default function App() {
                   description="Datos sistemáticos más paridad lista para transportar."
                   state={result ? "done" : "waiting"}
                 >
-                <BitGrid 
-                    bits={result ? unpackBits(result.encoded.bits, result.encoded.length) : null} 
+                <BitGrid
+                    bits={result ? unpackBits(result.encoded.bits, result.encoded.length) : null}
                     metadata={result?.encoded.metadata}
-                    emptyHint="La redundancia se visualizará aquí tras procesar." 
+                    emptyHint="La redundancia se visualizará aquí tras procesar."
+                    onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "encode", which: "encoded", index: i }) : undefined}
                 />
                 </FlowCard>
             </div>
@@ -246,10 +265,11 @@ export default function App() {
                   legend
                   state={result ? "done" : file ? "live" : "waiting"}
                 >
-                <BitGrid 
-                    bits={result ? unpackBits(result.received.bits, result.received.length) : null} 
+                <BitGrid
+                    bits={result ? unpackBits(result.received.bits, result.received.length) : null}
                     metadata={result?.received.metadata}
-                    emptyHint="La señal con ruido aparecerá aquí tras procesar." 
+                    emptyHint="La señal con ruido aparecerá aquí tras procesar."
+                    onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "decode", which: "received", index: i }) : undefined}
                 />
                 </FlowCard>
 
@@ -260,10 +280,11 @@ export default function App() {
                   description="Carga útil extraída después de síndrome y corrección."
                   state={result ? "done" : "waiting"}
                 >
-                <BitGrid 
-                    bits={result ? unpackBits(result.decoded.bits, result.decoded.length) : null} 
+                <BitGrid
+                    bits={result ? unpackBits(result.decoded.bits, result.decoded.length) : null}
                     metadata={result?.decoded.metadata}
-                    emptyHint="Resultado de la corrección de errores." 
+                    emptyHint="Resultado de la corrección de errores."
+                    onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "decode", which: "decoded", index: i }) : undefined}
                 />
                 </FlowCard>
             </div>

@@ -211,3 +211,126 @@ function findSyndromeColumn(code: LDPCCode, syndrome: number[]): number {
   }
   return -1;
 }
+
+/* ------------------------------------------------------------------ *
+ *  Pedagogical explainers — used by the inspector drawer to narrate
+ *  exactly what the encoder / decoder did with a single block.
+ *  Intentionally kept off the hot pipeline path: they recompute one
+ *  block on demand instead of bloating every block's worker payload.
+ * ------------------------------------------------------------------ */
+
+export interface EncodeBlockExplain {
+  k: number;
+  n: number;
+  data: Bit[];          // length k
+  codeword: Bit[];      // length n
+  /** For each codeword position j, the data indices i with G[i][j] === 1. */
+  contributors: number[][];
+}
+
+export function explainEncodeBlock(code: LDPCCode, data: Bit[]): EncodeBlockExplain {
+  const padded = Array.from({ length: code.k }, (_, i) => (data[i] ?? 0) as Bit);
+  const { codeword } = encodeLDPC(code, padded);
+  const contributors: number[][] = [];
+  for (let j = 0; j < code.n; j++) {
+    const c: number[] = [];
+    for (let i = 0; i < code.k; i++) if (code.G[i][j] === 1) c.push(i);
+    contributors.push(c);
+  }
+  return { k: code.k, n: code.n, data: padded, codeword, contributors };
+}
+
+export type DecodeAction = "already-clean" | "flip-syndrome-column" | "flip-majority-vote" | "stuck";
+
+export interface DecodeIteration {
+  syndrome: number[];                 // length m, before this step's flip
+  failedChecks: number[];             // indices i with syndrome[i] === 1
+  action: DecodeAction;
+  target: number | null;              // codeword position flipped (if any)
+}
+
+export interface DecodeBlockExplain {
+  k: number;
+  n: number;
+  m: number;
+  received: Bit[];                    // length n
+  corrected: Bit[];                   // length n, after decoding
+  data: Bit[];                        // length k (systematic prefix of corrected)
+  initialSyndrome: number[];
+  finalSyndrome: number[];
+  success: boolean;
+  correctedPositions: number[];       // codeword positions the decoder flipped
+  iterations: DecodeIteration[];
+  /** For each check row i, the codeword positions j it constrains (H[i][j] === 1). */
+  checkMembers: number[][];
+  /** For each codeword position j, the check rows i that touch it (H[i][j] === 1). */
+  variableChecks: number[][];
+}
+
+export function explainDecodeBlock(code: LDPCCode, received: Bit[], maxIterations = 10): DecodeBlockExplain {
+  const n = code.n;
+  const m = code.H.length;
+  const current = received.map((b) => (b ?? 0) as Bit);
+  const correctedPositions: number[] = [];
+  const iterations: DecodeIteration[] = [];
+
+  const initialSyndrome = calculateSyndrome(code, current);
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    const syndrome = calculateSyndrome(code, current);
+    const failedChecks = syndrome.map((b, i) => (b === 1 ? i : -1)).filter((i) => i >= 0);
+
+    if (failedChecks.length === 0) {
+      iterations.push({ syndrome, failedChecks, action: "already-clean", target: null });
+      break;
+    }
+
+    const exactColumn = findSyndromeColumn(code, syndrome);
+    if (exactColumn >= 0) {
+      iterations.push({ syndrome, failedChecks, action: "flip-syndrome-column", target: exactColumn });
+      current[exactColumn] ^= 1;
+      correctedPositions.push(exactColumn);
+      continue;
+    }
+
+    const failCounts = new Array(n).fill(0);
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < m; i++) if (code.H[i][j] === 1 && syndrome[i] === 1) failCounts[j]++;
+    }
+    const maxFails = Math.max(...failCounts);
+    if (maxFails === 0) {
+      iterations.push({ syndrome, failedChecks, action: "stuck", target: null });
+      break;
+    }
+    const toFlip = failCounts.findIndex((c) => c === maxFails);
+    iterations.push({ syndrome, failedChecks, action: "flip-majority-vote", target: toFlip });
+    current[toFlip] ^= 1;
+    correctedPositions.push(toFlip);
+  }
+
+  const finalSyndrome = calculateSyndrome(code, current);
+  const success = finalSyndrome.every((b) => b === 0);
+
+  const checkMembers: number[][] = code.H.map((row) =>
+    row.map((v, j) => (v === 1 ? j : -1)).filter((j) => j >= 0),
+  );
+  const variableChecks: number[][] = Array.from({ length: n }, (_, j) =>
+    code.H.map((row, i) => (row[j] === 1 ? i : -1)).filter((i) => i >= 0),
+  );
+
+  return {
+    k: code.k,
+    n,
+    m,
+    received: current.map((_, j) => (received[j] ?? 0) as Bit),
+    corrected: [...current],
+    data: current.slice(0, code.k),
+    initialSyndrome,
+    finalSyndrome,
+    success,
+    correctedPositions,
+    iterations,
+    checkMembers,
+    variableChecks,
+  };
+}

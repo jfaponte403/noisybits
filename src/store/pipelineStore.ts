@@ -17,6 +17,16 @@ interface LoadedFile {
 
 export type AppMode = "encode" | "decode";
 
+/** What the inspector drawer is currently explaining. */
+export type InspectTarget =
+  | { kind: "stage"; mode: AppMode; index: number }
+  | {
+      kind: "bit";
+      mode: AppMode;
+      which: "original" | "encoded" | "received" | "decoded";
+      index: number;
+    };
+
 interface PipelineState {
   mode: AppMode | null;
   file: LoadedFile | null;
@@ -25,6 +35,7 @@ interface PipelineState {
   result: PipelineResult | null;
   running: boolean;
   toast: { kind: "error" | "success"; message: string } | null;
+  inspect: InspectTarget | null;
 
   setMode: (mode: AppMode | null) => void;
   loadFile: (file: File) => Promise<void>;
@@ -34,6 +45,7 @@ interface PipelineState {
   run: () => Promise<void>;
   showToast: (kind: "error" | "success", message: string) => void;
   dismissToast: () => void;
+  setInspect: (target: InspectTarget | null) => void;
 }
 
 export const usePipelineStore = create<PipelineState>((set, get) => ({
@@ -44,13 +56,15 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   result: null,
   running: false,
   toast: null,
+  inspect: null,
 
   showToast: (kind, message) => set({ toast: { kind, message } }),
   dismissToast: () => set({ toast: null }),
+  setInspect: (inspect) => set({ inspect }),
 
-  setMode: (mode) => set({ mode, file: null, result: null }),
+  setMode: (mode) => set({ mode, file: null, result: null, inspect: null }),
 
-  setCodeId: (codeId) => set({ codeId, result: null }),
+  setCodeId: (codeId) => set({ codeId, result: null, inspect: null }),
 
   loadFile: async (file) => {
     if (file.size > MAX_BYTES) {
@@ -59,11 +73,11 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     }
     const type = file.type || guessType(file.name);
     const bytes = new Uint8Array(await file.arrayBuffer());
-    set({ file: { name: file.name, type, bytes }, result: null });
+    set({ file: { name: file.name, type, bytes }, result: null, inspect: dropBitInspect(get().inspect) });
     get().showToast("success", `Archivo cargado: ${file.name} (${bytes.length} bytes)`);
   },
 
-  clearFile: () => set({ file: null, result: null }),
+  clearFile: () => set({ file: null, result: null, inspect: dropBitInspect(get().inspect) }),
 
   setChannel: (patch) => set({ channel: { ...get().channel, ...patch } }),
 
@@ -82,7 +96,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
       } else {
         result = await runDecodePipeline(file.bytes, code, channel);
       }
-      set({ result, running: false });
+      set({ result, running: false, inspect: dropBitInspect(get().inspect) });
       get().showToast("success", "Procesamiento completado.");
     } catch (e) {
       set({ running: false });
@@ -90,6 +104,11 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     }
   },
 }));
+
+/** Bit inspections reference a specific (now stale) bit array; stage ones stay valid. */
+function dropBitInspect(inspect: InspectTarget | null): InspectTarget | null {
+  return inspect && inspect.kind === "stage" ? inspect : null;
+}
 
 function guessType(name: string): string {
   const ext = name.toLowerCase().split(".").pop() ?? "";
