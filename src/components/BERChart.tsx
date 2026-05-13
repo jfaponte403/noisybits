@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceDot } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { usePipelineStore } from "../store/pipelineStore";
 import { getCode } from "../lib/encoders/index";
 import { encodeLDPC, decodeLDPC } from "../lib/encoders/LDPC";
@@ -13,7 +13,7 @@ function randomData(k: number): Bit[] {
 }
 
 export function BERChart() {
-  const { result, codeId, mode } = usePipelineStore();
+  const { result, codeId } = usePipelineStore();
 
   const data = useMemo(() => {
     const code = getCode(codeId);
@@ -43,17 +43,15 @@ export function BERChart() {
   if (!result) return null;
 
   const code = getCode(codeId);
-  // Where this run sits on the channel axis (decode mode only).
-  const livePre = mode === "decode" ? result.metrics.berPreDecode : null;
 
   return (
     <div className="card space-y-4">
       <div className="card-head">
         <div className="left">
-          <span className="eyebrow">rendimiento</span>
+          <span className="eyebrow">tolerancia teórica</span>
           <h2>Curva de <span className="accent">error</span></h2>
           <p className="muted">
-            Simulación Monte-Carlo: {TRIALS_PER_POINT.toLocaleString()} bloques aleatorios por punto, código {code.label}, canal BSC.
+            Referencia Monte-Carlo: {TRIALS_PER_POINT.toLocaleString()} bloques aleatorios por punto con {code.label}. Indica hasta cuántos bits alterados por bloque resiste este código.
           </p>
         </div>
       </div>
@@ -66,7 +64,7 @@ export function BERChart() {
               dataKey="p"
               stroke="var(--tx-3)"
               tick={{ fill: "var(--tx-3)", fontSize: 11 }}
-              label={{ value: "probabilidad de error del canal (p)", position: "insideBottom", offset: -12, fill: "var(--tx-3)", fontSize: 11 }}
+              label={{ value: "fracción de bits alterados por bloque (p)", position: "insideBottom", offset: -12, fill: "var(--tx-3)", fontSize: 11 }}
             />
             <YAxis
               stroke="var(--tx-3)"
@@ -83,9 +81,6 @@ export function BERChart() {
             <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />
             <Line type="monotone" dataKey="preBER" name="sin codificar" stroke="var(--err)" strokeWidth={2} dot={false} />
             <Line type="monotone" dataKey="postBER" name="con LDPC" stroke="var(--signal)" strokeWidth={2} dot={{ r: 2 }} />
-            {livePre !== null && (
-              <ReferenceDot x={(Math.round(livePre / 0.05) * 0.05).toFixed(2)} y={livePre} r={4} fill="var(--warn)" stroke="var(--bg-1)" ifOverflow="extendDomain" label={{ value: "tu ejecución", position: "top", fill: "var(--warn)", fontSize: 10 }} />
-            )}
           </LineChart>
         </ResponsiveContainer>
       </div>

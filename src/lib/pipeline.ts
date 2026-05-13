@@ -3,30 +3,22 @@ import {
   bytesToBits,
   bitsToBytes,
   packBits,
-  parseGroupedBinaryText,
+  parseEncodedFile,
   type BitArray,
   type Bit,
   type BitType,
+  type EncodedFileMeta,
 } from "./bitstream/BitArray";
 import { type AnyCode } from "./encoders/index";
 import type { LDPCDecodeTrace, LDPCEncodeTrace } from "./encoders/LDPC";
-import { applyBSC } from "./channel/channel";
 import { ber, sha256Hex } from "./metrics/metrics";
-
-export type ChannelMode = "bsc" | "pattern";
-
-export interface ChannelConfig {
-  mode: ChannelMode;
-  bscProbability: number;
-  pattern: string;
-  patternPosition: number;
-}
 
 export interface PipelineResult {
   original: BitArray;
   encoded: BitArray;
   received: BitArray;
   decoded: BitArray;
+  sourceMeta?: EncodedFileMeta | null;
   metrics: {
     berPreDecode: number;
     berPostDecode: number;
@@ -117,55 +109,31 @@ export async function runEncodePipeline(
 
 export async function runDecodePipeline(
   fileBytes: Uint8Array,
-  code: AnyCode,
-  channelConfig: ChannelConfig
+  code: AnyCode
 ): Promise<PipelineResult> {
   const t0 = performance.now();
-  const encodedBits = readEncodedBits(fileBytes);
+  const { bits: encodedBits, meta: sourceMeta } = readEncodedFile(fileBytes);
   if (encodedBits.length % code.n !== 0) {
     throw new Error(`El archivo codificado no está alineado a bloques de ${code.n} bits.`);
   }
+
+  const k = code.k;
+  const n = code.n;
 
   const original: BitArray = {
     bits: packBits(encodedBits),
     length: encodedBits.length,
     metadata: {}
   };
-  
-  // Tag original as mix of data/parity based on code
-  const k = code.k;
-  const n = code.n;
   for (let i = 0; i < encodedBits.length; i++) {
       original.metadata![i] = (i % n) < k ? "data" : "parity";
   }
 
-  // 1. CHANNEL (Noise)
+  // No channel simulation in decode mode — the uploaded file is taken as the received word.
   const receivedBits = [...encodedBits];
-  if (channelConfig.mode === "bsc") {
-    const bscBits = applyBSC(encodedBits, channelConfig.bscProbability);
-    for (let i = 0; i < encodedBits.length; i++) {
-        receivedBits[i] = bscBits[i];
-    }
-  } else if (channelConfig.mode === "pattern") {
-      const pattern = channelConfig.pattern.split("").map(c => parseInt(c, 10));
-      if (pattern.some((bit) => bit !== 0 && bit !== 1)) {
-        throw new Error("El patrón de error solo puede contener 0 y 1.");
-      }
-      const pos = channelConfig.patternPosition;
-      for (let i = 0; i < pattern.length; i++) {
-          if (pos + i < receivedBits.length) {
-              receivedBits[pos + i] ^= pattern[i];
-          }
-      }
-  }
-
   const receivedMetadata: Record<number, BitType> = {};
   for (let i = 0; i < encodedBits.length; i++) {
-    if (receivedBits[i] !== encodedBits[i]) {
-        receivedMetadata[i] = "altered";
-    } else {
-        receivedMetadata[i] = (i % n) < k ? "data" : "parity";
-    }
+    receivedMetadata[i] = (i % n) < k ? "data" : "parity";
   }
 
   const received: BitArray = {
@@ -208,6 +176,7 @@ export async function runDecodePipeline(
     encoded: original,
     received,
     decoded,
+    sourceMeta,
     metrics: {
       berPreDecode: ber(encodedBits, receivedBits),
       berPostDecode: 0,
@@ -224,8 +193,9 @@ export async function runDecodePipeline(
   };
 }
 
-function readEncodedBits(fileBytes: Uint8Array): Bit[] {
+function readEncodedFile(fileBytes: Uint8Array): { bits: Bit[]; meta: EncodedFileMeta | null } {
   const text = new TextDecoder().decode(fileBytes);
-  const parsed = parseGroupedBinaryText(text);
-  return parsed ?? bytesToBits(fileBytes);
+  const parsed = parseEncodedFile(text);
+  if (parsed) return { bits: parsed.bits, meta: parsed.meta };
+  return { bits: bytesToBits(fileBytes), meta: null };
 }

@@ -1,26 +1,47 @@
 import { usePipelineStore } from "../store/pipelineStore";
 import { FileDropzone } from "./FileDropzone";
+import { DecodedFilePreview, FilePreview } from "./FilePreview";
 import { ALL_CODES, getCode } from "../lib/encoders/index";
 import { Download, Play } from "lucide-react";
-import { bitsToBytes, bitsToGroupedBinaryText, unpackBits } from "../lib/bitstream/BitArray";
+import { bitsToBytes, serializeEncodedFile, unpackBits } from "../lib/bitstream/BitArray";
 
 export function ControlsPanel() {
-  const { mode, codeId, setCodeId, run, running, file, channel, setChannel, result } = usePipelineStore();
+  const { mode, codeId, setCodeId, run, running, file, result } = usePipelineStore();
   const code = getCode(codeId);
   const canRun = Boolean(file) && !running;
 
   const downloadFile = () => {
-    if (!result) return;
-    const target = mode === "encode" ? result.encoded : result.decoded;
-    const bits = unpackBits(target.bits, target.length);
-    const blob =
-      mode === "encode"
-        ? new Blob([bitsToGroupedBinaryText(bits)], { type: "text/plain;charset=utf-8" })
-        : new Blob([bitsToBytes(bits).buffer as ArrayBuffer], { type: file?.type || "application/octet-stream" });
+    if (!result || !file) return;
+
+    if (mode === "encode") {
+      const bits = unpackBits(result.encoded.bits, result.encoded.length);
+      const text = serializeEncodedFile(bits, {
+        name: file.name,
+        type: file.type || "application/octet-stream",
+        dataBits: file.bytes.length * 8,
+      });
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      triggerDownload(blob, `encoded_${file.name}.txt`);
+      return;
+    }
+
+    // decode: restore original media using embedded metadata when present
+    const meta = result.sourceMeta;
+    const allBits = unpackBits(result.decoded.bits, result.decoded.length);
+    const usableBits = meta && meta.dataBits > 0 && meta.dataBits <= allBits.length
+      ? allBits.slice(0, meta.dataBits)
+      : allBits;
+    const outName = meta?.name ?? `decoded_${file.name}`;
+    const outType = meta?.type || file.type || "application/octet-stream";
+    const blob = new Blob([bitsToBytes(usableBits).buffer as ArrayBuffer], { type: outType });
+    triggerDownload(blob, outName);
+  };
+
+  const triggerDownload = (blob: Blob, name: string) => {
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = mode === "encode" ? `encoded_${file?.name || "file"}.txt` : `decoded_${file?.name || "file"}`;
+    a.download = name;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -30,6 +51,7 @@ export function ControlsPanel() {
       <div className="field">
         <span className="lbl">{mode === "encode" ? "Archivo Original" : "Archivo Codificado"}</span>
         <FileDropzone />
+        {file && <FilePreview file={file} mode={mode === "encode" ? "encode" : "decode"} />}
       </div>
 
       <div className="field">
@@ -45,72 +67,6 @@ export function ControlsPanel() {
           {`Tasa ${(code.rate).toFixed(3)} · k=${code.k} → n=${code.n}. Salida codificada en .txt binario.`}
         </span>
       </div>
-
-      {mode === "decode" && (
-        <>
-          <div className="field">
-            <span className="lbl">Modelo de canal</span>
-            <div className="segmented" role="group" aria-label="modelo de canal">
-              <button
-                type="button"
-                className="segmented-btn"
-                data-active={channel.mode === "bsc"}
-                onClick={() => setChannel({ mode: "bsc" })}
-              >
-                BSC
-              </button>
-              <button
-                type="button"
-                className="segmented-btn"
-                data-active={channel.mode === "pattern"}
-                onClick={() => setChannel({ mode: "pattern" })}
-              >
-                Patrón
-              </button>
-            </div>
-          </div>
-
-          <div className="field">
-            <span className="lbl">Probabilidad de error</span>
-            <div className="flex items-center gap-4">
-              <input 
-                type="range" 
-                min="0" 
-                max="0.5" 
-                step="0.001" 
-                className="pager flex-1"
-                value={channel.bscProbability}
-                disabled={channel.mode !== "bsc"}
-                onChange={(e) => setChannel({ bscProbability: parseFloat(e.target.value) })}
-                style={{ "--p": `${(channel.bscProbability / 0.5) * 100}%` } as React.CSSProperties}
-              />
-              <span className="mono text-tx-2 w-12 text-right">{channel.bscProbability.toFixed(3)}</span>
-            </div>
-          </div>
-
-          <div className="field">
-              <span className="lbl">Inyección de Patrón</span>
-              <div className="grid grid-cols-[1fr_80px] gap-2">
-                <input 
-                    type="text" 
-                    className="input mono" 
-                    placeholder="1010..." 
-                    value={channel.pattern}
-                    disabled={channel.mode !== "pattern"}
-                    onChange={(e) => setChannel({ pattern: e.target.value.replace(/[^01]/g, '') })}
-                />
-                <input 
-                    type="number" 
-                    className="input mono" 
-                    placeholder="Pos" 
-                    value={channel.patternPosition}
-                    disabled={channel.mode !== "pattern"}
-                    onChange={(e) => setChannel({ patternPosition: parseInt(e.target.value, 10) || 0 })}
-                />
-              </div>
-          </div>
-        </>
-      )}
 
       <div className="pt-4 space-y-3">
         <div className="run-summary">
@@ -138,6 +94,10 @@ export function ControlsPanel() {
             <Download size={16} />
             {mode === "encode" ? "Descargar Codificado" : "Descargar Reconstruido"}
           </button>
+        )}
+
+        {mode === "decode" && result && file && (
+          <DecodedFilePreview result={result} fallbackName={file.name} />
         )}
       </div>
     </div>

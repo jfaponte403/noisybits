@@ -1,10 +1,5 @@
 import { create } from "zustand";
-import {
-  runEncodePipeline,
-  runDecodePipeline,
-  type ChannelConfig,
-  type PipelineResult,
-} from "../lib/pipeline";
+import { runEncodePipeline, runDecodePipeline, type PipelineResult } from "../lib/pipeline";
 import { DEFAULT_CODE_ID, getCode, type AnyCode } from "../lib/encoders/index";
 
 const MAX_BYTES = 50 * 1024 * 1024;
@@ -31,7 +26,6 @@ interface PipelineState {
   mode: AppMode | null;
   file: LoadedFile | null;
   codeId: string;
-  channel: ChannelConfig;
   result: PipelineResult | null;
   running: boolean;
   toast: { kind: "error" | "success"; message: string } | null;
@@ -41,7 +35,6 @@ interface PipelineState {
   loadFile: (file: File) => Promise<void>;
   clearFile: () => void;
   setCodeId: (id: string) => void;
-  setChannel: (patch: Partial<ChannelConfig>) => void;
   run: () => Promise<void>;
   showToast: (kind: "error" | "success", message: string) => void;
   dismissToast: () => void;
@@ -52,7 +45,6 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   mode: null,
   file: null,
   codeId: DEFAULT_CODE_ID,
-  channel: { mode: "bsc", bscProbability: 0.03, pattern: "10101010", patternPosition: 0 },
   result: null,
   running: false,
   toast: null,
@@ -79,10 +71,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   clearFile: () => set({ file: null, result: null, inspect: dropBitInspect(get().inspect) }),
 
-  setChannel: (patch) => set({ channel: { ...get().channel, ...patch } }),
-
   run: async () => {
-    const { file, channel, codeId, mode } = get();
+    const { file, codeId, mode } = get();
     if (!file) {
       get().showToast("error", "Carga un archivo primero.");
       return;
@@ -94,7 +84,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
       if (mode === "encode") {
         result = await runEncodePipeline(file.bytes, code);
       } else {
-        result = await runDecodePipeline(file.bytes, code, channel);
+        result = await runDecodePipeline(file.bytes, code);
       }
       set({ result, running: false, inspect: dropBitInspect(get().inspect) });
       get().showToast("success", "Procesamiento completado.");

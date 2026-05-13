@@ -20,11 +20,6 @@ export function MetricsPanel() {
       <div className="metric-grid">
         {mode === "decode" && (
           <>
-            <div className={`metric ${metrics.berPreDecode > 0 ? "err" : "ok"}`}>
-              <span className="k">BER del canal</span>
-              <div className="v">{metrics.berPreDecode.toFixed(4)}</div>
-              <div className="d">fracción de bits invertidos al recibir</div>
-            </div>
             <div className={`metric ${clean ? "ok" : "err"}`}>
               <span className="k">bits corregidos</span>
               <div className="v">{metrics.errorsCorrected.toLocaleString()}</div>
@@ -68,7 +63,7 @@ export function MetricsPanel() {
             <div>
               {clean
                 ? "El decoder convergió en todos los bloques. Si este archivo se generó codificando un original con este mismo código, el reconstruido es idéntico bit a bit; compará los hashes."
-                : "Algún bloque no pudo corregirse del todo. El reconstruido puede contener errores: bajá la probabilidad de error del canal o usá un código de menor tasa."}
+                : "Algún bloque no pudo corregirse del todo. El reconstruido puede contener errores: el archivo subido tiene más bits alterados de los que este código tolera. Probá un código de menor tasa."}
             </div>
           </div>
         )}

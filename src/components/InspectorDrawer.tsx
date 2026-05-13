@@ -201,7 +201,6 @@ function buildStageDocs(mode: "encode" | "decode", code: LDPCCode, result: Pipel
   }
 
   // decode
-  const preBER = result?.metrics.berPreDecode ?? 0;
   const corrected = result?.metrics.errorsCorrected ?? 0;
   const residual = result?.metrics.errorsUncorrected ?? 0;
   return [
@@ -209,50 +208,55 @@ function buildStageDocs(mode: "encode" | "decode", code: LDPCCode, result: Pipel
       eyebrow: "paso 1 · entrada",
       title: "Leer la palabra",
       accent: "codificada",
-      lede: `Recibís un archivo que ya pasó por una codificación LDPC: una tira de bits que debería estar alineada en bloques de ${n}. Se reconstruyen esos bloques.`,
-      what: <>Entra el archivo codificado (texto binario o bytes). Se interpreta como bits y se agrupa en bloques de <Mono>n = {n}</Mono>.</>,
+      lede: `Recibís un archivo que ya pasó por una codificación LDPC: una tira de bits que debería estar alineada en bloques de ${n}. Se reconstruyen esos bloques tal cual llegaron.`,
+      what: <>Entra el archivo codificado (texto binario, con o sin cabecera <Mono># noisybits</Mono>). Se interpreta como bits y se agrupa en bloques de <Mono>n = {n}</Mono>.</>,
       calc: <>Se valida que la longitud sea múltiplo de {n}. {has && <>Se alinearon <strong>{fmt(recBits)}</strong> bits = <strong>{fmt(recBits / n)}</strong> bloques.</>}</>,
-      out: <>Una lista de vectores recibidos <Mono>r ∈ {"{0,1}"}<sup>{n}</sup></Mono> (todavía sin ruido aplicado en la app).</>,
+      out: <>Una lista de vectores recibidos <Mono>r ∈ {"{0,1}"}<sup>{n}</sup></Mono>. La app no añade ruido: lo que veas alterado es lo que vino así desde el archivo.</>,
       nodes: <>Cada bloque vuelve a instanciar el grafo de Tanner del código: {n} nodos de variable, {m} nodos de chequeo.</>,
       math: <>Aún no hay decodificación: solo se recupera <Mono>r</Mono> tal como llegó. La pregunta que sigue es: ¿se cumple <Mono>r·H<sup>T</sup> = 0</Mono>?</>,
     },
     {
-      eyebrow: "paso 2 · canal",
-      title: "Atravesar el",
-      accent: "ruido",
-      lede: "Para simular una transmisión real, se corrompen algunos bits: o al azar con cierta probabilidad (canal binario simétrico), o invirtiendo un patrón concreto que vos elegís.",
-      what: <>Entra <Mono>r</Mono>. En modo BSC, cada bit se invierte con probabilidad <Mono>p</Mono> de forma independiente. En modo patrón, se hace XOR del patrón en la posición indicada.</>,
-      calc: <>BSC: <Mono>r′<sub>i</sub> = r<sub>i</sub> ⊕ e<sub>i</sub></Mono>, con <Mono>P(e<sub>i</sub>=1) = p</Mono>. {has && <>Tasa de error medida tras el canal: <strong>{preBER.toFixed(4)}</strong>.</>}</>,
-      out: <>La señal recibida con errores. Los bits invertidos aparecen marcados como <em>alterado</em> en la grilla.</>,
-      nodes: <>Los errores quedan sobre nodos de variable concretos; los nodos de chequeo que los tocan dejarán de cumplirse.</>,
-      math: <>El vector de error <Mono>e</Mono> es desconocido para el decoder. Lo único observable es <Mono>r′</Mono>, y de ahí el síndrome <Mono>s = r′·H<sup>T</sup> = e·H<sup>T</sup></Mono>.</>,
-    },
-    {
-      eyebrow: "paso 3 · síndrome",
+      eyebrow: "paso 2 · síndrome",
       title: "Calcular el",
-      accent: "síndrome y corregir",
-      lede: `El decoder no conoce el mensaje original, pero sí la matriz H. Multiplica cada bloque por H: si da todo ceros, no hay error; si no, el resultado (el "síndrome") apunta a qué bits sospechar.`,
-      what: <>Entra cada bloque recibido <Mono>r′</Mono>. Se calcula <Mono>s = H · r′</Mono> (módulo 2), un vector de {m} bits.</>,
+      accent: "síndrome",
+      lede: `El decoder no conoce qué bits llegaron mal, pero sí la matriz H. Multiplica cada bloque por H: si da todo ceros, no hay error; si no, el resultado (el "síndrome") apunta a qué bits sospechar.`,
+      what: <>Entra cada bloque recibido <Mono>r</Mono>. Se calcula <Mono>s = H · r</Mono> (módulo 2), un vector de {m} bits por bloque.</>,
       calc: (
         <>
-          <p>Si <Mono>s = 0</Mono>: el bloque ya satisface todas las ecuaciones de paridad, se acepta.</p>
-          <p>Si <Mono>s</Mono> coincide exactamente con una columna de <Mono>H</Mono>: ese único bit es el culpable, se invierte y se recalcula.</p>
-          <p>Si no: bit-flipping iterativo. Se invierte el bit que participa en más chequeos fallidos (voto mayoritario) y se repite, hasta {10} iteraciones.</p>
-          {has && <p>Resultado: <strong>{fmt(corrected)}</strong> bits corregidos, <strong>{fmt(residual)}</strong> chequeos sin resolver.</p>}
+          <p>Si <Mono>s = 0</Mono>: el bloque ya satisface todas las ecuaciones de paridad, se acepta sin tocar nada.</p>
+          <p>Si <Mono>s ≠ 0</Mono>: cada chequeo fallido apunta a las columnas de <Mono>H</Mono> que tocan ese bit.</p>
+          {has && <p>Bloques recibidos: <strong>{fmt(recBits / n)}</strong>. El siguiente paso usa <Mono>s</Mono> para decidir qué bits invertir.</p>}
         </>
       ),
-      out: <>Para cada bloque, un codeword corregido (idealmente con síndrome cero) del que se extraen los {k} bits de datos.</>,
-      nodes: <>Es paso de mensajes en el grafo de Tanner: los nodos de chequeo &ldquo;votan&rdquo; sobre los nodos de variable que tocan; el más señalado se invierte.</>,
-      math: <>Decodificación por síndrome: dos vectores recibidos tienen el mismo síndrome sii difieren en una palabra código. El decoder elige el patrón de error más probable (de menor peso) compatible con <Mono>s</Mono>.</>,
+      out: <>Para cada bloque, un vector síndrome <Mono>s ∈ {"{0,1}"}<sup>{m}</sup></Mono> que resume qué ecuaciones de paridad no se cumplen.</>,
+      nodes: <>Los nodos de chequeo evalúan a sus nodos de variable conectados. Si su suma no es cero, ese chequeo &ldquo;protesta&rdquo;.</>,
+      math: <>El síndrome <Mono>s = H·r = H·e</Mono> depende solo del patrón de error <Mono>e</Mono>, no del mensaje. Dos vectores recibidos tienen el mismo síndrome sii difieren en una palabra código.</>,
+    },
+    {
+      eyebrow: "paso 3 · corrección",
+      title: "Aplicar la",
+      accent: "corrección por bit-flipping",
+      lede: "Si el síndrome no es cero, el decoder invierte el bit más sospechoso (el que aparece en más chequeos fallidos) y vuelve a calcular el síndrome. Itera hasta limpiar todas las ecuaciones o agotar el presupuesto.",
+      what: <>Entra el bloque con su síndrome. Se aplica bit-flipping: voto mayoritario de chequeos fallidos, hasta {10} iteraciones por bloque.</>,
+      calc: (
+        <>
+          <p>Si <Mono>s</Mono> coincide exactamente con una columna de <Mono>H</Mono>: ese único bit es el culpable, se invierte y se recalcula.</p>
+          <p>Si no: se cuenta cuántos chequeos fallidos toca cada bit y se invierte el de mayor cuenta.</p>
+          {has && <p>Resultado: <strong>{fmt(corrected)}</strong> bits corregidos, <strong>{fmt(residual)}</strong> chequeos residuales sin resolver.</p>}
+        </>
+      ),
+      out: <>Para cada bloque, un codeword (idealmente con síndrome cero) del que se extraen los {k} bits de datos.</>,
+      nodes: <>Paso de mensajes en el grafo de Tanner: los nodos de chequeo &ldquo;votan&rdquo; sobre los nodos de variable que tocan; el más señalado se invierte.</>,
+      math: <>Decodificación por síndrome: el decoder elige el patrón de error más probable (de menor peso) compatible con <Mono>s</Mono>. Funciona mientras los errores por bloque no excedan la capacidad del código.</>,
     },
     {
       eyebrow: "paso 4 · salida",
-      title: "Reconstruir la",
-      accent: "carga útil",
-      lede: "Como el código es sistemático, los datos están en las primeras k posiciones de cada bloque corregido. Se concatenan y se reempaquetan como archivo.",
-      what: <>Entran los bloques corregidos. De cada uno se toman los primeros <Mono>k = {k}</Mono> bits.</>,
+      title: "Reconstruir el",
+      accent: "archivo original",
+      lede: "Como el código es sistemático, los datos están en las primeras k posiciones de cada bloque corregido. Se concatenan y se reempaquetan como archivo del mismo tipo que el original.",
+      what: <>Entran los bloques corregidos. De cada uno se toman los primeros <Mono>k = {k}</Mono> bits. Si el archivo trae cabecera, se recortan al tamaño exacto del original.</>,
       calc: <>{has && <>Salida: <strong>{fmt(decBits)}</strong> bits de datos. Hash SHA-256 del resultado: <Mono>{result?.metrics.decodedHash.slice(0, 16)}…</Mono></>}</>,
-      out: <>Un archivo reconstruido. Si el canal no superó la capacidad de corrección del código, es bit-a-bit idéntico al original.</>,
+      out: <>Un archivo reconstruido. Si el archivo codificado no superó la capacidad de corrección del código, es bit-a-bit idéntico al original (mismo nombre, mismo tipo, mismos bytes).</>,
       nodes: <>Solo sobreviven los nodos de variable de datos; los de paridad cumplieron su función y se descartan.</>,
       math: <>Has invertido la codificación: dado <Mono>c</Mono> recuperado, <Mono>u</Mono> son sus primeras {k} coordenadas. Comparar el hash con el original es la prueba empírica de que la corrección funcionó.</>,
     },
@@ -410,25 +414,23 @@ function BitExplain({ target, code, result }: { target: Extract<InspectTarget, {
     return (
       <BitShell
         title={`Bit #${fmt(idx)}`}
-        badge={wasAltered ? "alterado por el canal" : roleLabel(within, k)}
+        badge={wasAltered ? "alterado en el archivo" : roleLabel(within, k)}
         badgeCls={wasAltered ? "a" : ""}
       >
         <Section label="Ubicación">
           <p>Bloque recibido <strong>#{fmt(b)}</strong>, posición <strong>{within}</strong> de {n} ({roleLabel(within, k)}).</p>
         </Section>
-        <Section label="Transmitido → recibido → decodificado">
+        <Section label="Recibido → decodificado">
           <p className="ins-eq">
-            <Mono>{sentBlock[within]}</Mono> <span className="ins-arrow">→</span> <Mono>{receivedBlock[within]}</Mono> <span className="ins-arrow">→</span> <Mono>{finalValue}</Mono>
+            <Mono>{receivedBlock[within]}</Mono> <span className="ins-arrow">→</span> <Mono>{finalValue}</Mono>
           </p>
           <p>
             {wasAltered
-              ? "El canal invirtió este bit. "
-              : "El canal no tocó este bit. "}
+              ? "Este bit difiere del codeword esperado. "
+              : "Este bit coincide con el codeword esperado. "}
             {wasFlippedByDecoder
               ? "El decoder lo invirtió durante la corrección."
               : "El decoder lo dejó como llegó."}
-            {" "}
-            {finalValue === sentBlock[within] ? "Quedó igual al transmitido: bien." : "No coincide con el transmitido."}
           </p>
         </Section>
         <Section label="El bloque recibido">

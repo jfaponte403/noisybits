@@ -69,9 +69,9 @@ function JourneyStrip() {
       ]
     : [
         { title: "Recepción", detail: file ? `${file.bytes.length.toLocaleString()} bytes` : "señal codificada", icon: FileCode2, state: file ? "done" : "active" },
-        { title: "Canal", detail: "BSC + patrón", icon: RadioTower, state: result ? "done" : running ? "active" : "upcoming" },
-        { title: "Síndrome", detail: "H · corrección", icon: Activity, state: result ? "done" : "upcoming" },
-        { title: "Integridad", detail: result ? `${result.metrics.errorsCorrected} reparados` : "hash final", icon: Gauge, state: result ? "active" : "upcoming" },
+        { title: "Síndrome", detail: "H · r por bloque", icon: Activity, state: result ? "done" : running ? "active" : "upcoming" },
+        { title: "Corrección", detail: result ? `${result.metrics.errorsCorrected} reparados` : "bit-flipping", icon: RadioTower, state: result ? "done" : "upcoming" },
+        { title: "Integridad", detail: result ? `${result.metrics.errorsUncorrected === 0 ? "síndrome 0" : "residual"}` : "hash final", icon: Gauge, state: result ? "active" : "upcoming" },
       ];
 
   return (
