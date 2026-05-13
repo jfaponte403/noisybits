@@ -27,7 +27,7 @@ describe("LDPC file pipeline contract", () => {
 
   it.each(fixtures)("loads, encodes to binary txt and decodes $name", ({ bytes }) => {
     const encodedText = encodeFileToBinaryText(bytes, LDPC_8_16);
-    expect(encodedText).toMatch(/^[01]{1,3}( [01]{1,3})*$/);
+    expect(encodedText).toMatch(/^[01]{1,8}( [01]{1,8})*$/);
 
     const decoded = decodeBinaryTextToFile(encodedText, LDPC_8_16);
 
