@@ -1,5 +1,7 @@
 import { ArrowLeft, ShieldCheck, ShieldAlert, BookOpen } from "lucide-react";
 import { ALL_CODES } from "../lib/encoders/index";
+import { LDPC_7_4 } from "../lib/encoders/LDPC";
+import { Term, Matrix } from "./Term";
 
 interface Props {
   onBack: () => void;
@@ -61,10 +63,15 @@ export function LDPCExplainer({ onBack, onStart }: Props) {
           ¿Qué es <span className="accent">LDPC</span> y por qué sirve?
         </h2>
         <p>
-          LDPC (<em>Low-Density Parity-Check</em>) es un código de canal que agrega
-          <strong> bits de paridad</strong> a un mensaje. Si el ruido del canal
-          altera algunos bits, esas paridades permiten <strong>detectar y corregir</strong>
-          el error sin reenviar nada.
+          LDPC (<em>Low-Density Parity-Check</em>) es un código de canal que agrega{" "}
+          <Term label="bits de paridad">
+            Un <strong>bit de paridad</strong> es un bit extra que se calcula sumando (XOR) varios
+            bits de datos. Si uno de los bits cambia, la paridad ya no “cuadra” y eso delata el error.
+            <br />
+            <span className="mono">Ej: p = d0 ⊕ d1 ⊕ d2</span>
+          </Term>{" "}
+          a un mensaje. Si el ruido del canal altera algunos bits, esas paridades
+          permiten <strong>detectar y corregir</strong> el error sin reenviar nada.
         </p>
       </header>
 
@@ -74,8 +81,22 @@ export function LDPCExplainer({ onBack, onStart }: Props) {
           <h3>Datos + paridad = bloque protegido</h3>
           <p>
             Tomamos <strong>k</strong> bits de datos y agregamos <strong>n − k</strong> bits
-            de paridad calculados con una matriz <code className="inl">G</code>. El bloque
-            resultante de <strong>n</strong> bits se llama <em>codeword</em>.
+            de paridad calculados con una{" "}
+            <Term label="Matriz G">
+              La <strong>matriz generadora G</strong> tiene tamaño <span className="mono">k × n</span>.
+              En forma sistemática es <span className="mono">[I | P]</span>: copia los datos tal cual
+              y agrega columnas que calculan cada bit de paridad.
+              <Matrix rows={LDPC_7_4.G} caption="G del código 4/7 (4×7)" />
+              Multiplicar el vector de datos por <span className="mono">G</span> (mod 2) produce el codeword.
+            </Term>
+            . El bloque resultante de <strong>n</strong> bits se llama{" "}
+            <Term label="codeword">
+              <strong>Codeword</strong>: el bloque de <span className="mono">n</span> bits que
+              efectivamente se transmite. Los primeros <span className="mono">k</span> bits son
+              los datos originales (parte sistemática) y los últimos <span className="mono">n−k</span>{" "}
+              son la paridad.
+            </Term>
+            .
           </p>
           <div className="learn-formula">
             <span className="mono">codeword = datos · G  (mod 2)</span>
@@ -96,9 +117,23 @@ export function LDPCExplainer({ onBack, onStart }: Props) {
           <span className="eyebrow">paso 3 · corrección</span>
           <h3>Síndrome con la matriz H</h3>
           <p>
-            El receptor calcula <code className="inl">H · recibido</code>. Si da cero,
-            no hay errores. Si no, el resultado apunta a la columna de <code className="inl">H</code> que coincide con el bit
-            equivocado: se invierte ese bit y listo.
+            El receptor calcula{" "}
+            <Term label="síndrome">
+              El <strong>síndrome</strong> es el vector <span className="mono">s = H · r</span>{" "}
+              (mod 2), donde <span className="mono">r</span> es el bloque recibido. Si todos
+              sus bits son cero, no hay errores detectables. Si no, el patrón de unos en{" "}
+              <span className="mono">s</span> coincide con la columna de <span className="mono">H</span> del bit que falló.
+            </Term>{" "}
+            con la{" "}
+            <Term label="Matriz H">
+              La <strong>matriz de chequeo H</strong> tiene tamaño <span className="mono">(n−k) × n</span>.
+              Cada fila es una ecuación de paridad que el codeword debe cumplir:
+              <span className="mono"> H · codeword = 0</span>.
+              <Matrix rows={LDPC_7_4.H} caption="H del código 4/7 (3×7)" />
+              Cuando el recibido no la cumple, la diferencia (síndrome) apunta al bit roto.
+            </Term>
+            . Si da cero, no hay errores. Si no, el resultado apunta a la columna de{" "}
+            <code className="inl">H</code> que coincide con el bit equivocado: se invierte ese bit y listo.
           </p>
         </article>
       </section>
@@ -155,7 +190,18 @@ export function LDPCExplainer({ onBack, onStart }: Props) {
             <span className="eyebrow">tasas disponibles</span>
             <h2>¿Qué pasa si cambio la <span className="accent">tasa</span>?</h2>
             <p className="muted">
-              La tasa <strong>k/n</strong> es cuántos bits de información viajan por cada bit
+              La{" "}
+              <Term label="tasa">
+                <strong>Tasa</strong> = <span className="mono">k / n</span>. Es la fracción de
+                bits útiles dentro del bloque transmitido.
+                <br />
+                • <strong>Tasa baja</strong> (ej. 1/2): mucha redundancia, corrige más errores, archivo
+                final más grande.
+                <br />
+                • <strong>Tasa alta</strong> (ej. 3/4): poca redundancia, corrige menos, archivo final
+                más liviano.
+              </Term>{" "}
+              <strong>k/n</strong> es cuántos bits de información viajan por cada bit
               transmitido. <strong>Más baja = más redundancia = más capacidad de corrección,
               pero archivo final más grande.</strong>
             </p>

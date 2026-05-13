@@ -1393,6 +1393,126 @@ select.input option {
   }
 }
 
+/* ---------- term popover ---------- */
+.term-wrap {
+  position: relative;
+  display: inline;
+}
+.term-trigger {
+  font: inherit;
+  display: inline;
+  padding: 0 2px;
+  margin: 0 1px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed var(--signal-edge);
+  color: var(--signal);
+  cursor: help;
+  border-radius: 2px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.term-trigger:hover,
+.term-trigger.open {
+  background: var(--signal-soft);
+  color: var(--tx-1);
+  border-bottom-style: solid;
+}
+.term-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(82% 0.12 220 / 0.25);
+}
+.term-pop {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 10px);
+  left: 0;
+  width: max-content;
+  max-width: min(360px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  box-shadow: 0 18px 40px -14px rgba(0, 0, 0, 0.7);
+  font-weight: 400;
+  color: var(--tx-2);
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: left;
+  white-space: normal;
+  animation: term-pop-in 0.12s ease-out;
+}
+@keyframes term-pop-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.term-pop-arrow {
+  position: absolute;
+  top: -6px;
+  left: 14px;
+  width: 10px;
+  height: 10px;
+  background: var(--bg-2);
+  border-top: 1px solid var(--line-2);
+  border-left: 1px solid var(--line-2);
+  transform: rotate(45deg);
+}
+.term-pop-title {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--signal);
+}
+.term-pop-body {
+  display: block;
+}
+.term-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 10px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+}
+.term-matrix-cap {
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  color: var(--tx-3);
+}
+.term-matrix-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.term-matrix-row {
+  display: flex;
+  gap: 3px;
+}
+.term-matrix-cell {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  border-radius: 3px;
+  background: var(--bg-3);
+  border: 1px solid var(--line-1);
+  color: var(--tx-3);
+}
+.term-matrix-cell.on {
+  background: var(--signal-soft);
+  border-color: var(--signal-edge);
+  color: var(--signal);
+  font-weight: 600;
+}
+
 /* ---------- file drop ---------- */
 .drop {
   border: 1.5px dashed var(--line-3);
