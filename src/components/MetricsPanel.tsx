@@ -5,8 +5,9 @@ export function MetricsPanel() {
 
   if (!result) {
     return (
-      <div className="text-center py-12 text-tx-3 mono">
-        Sin métricas disponibles. Ejecuta el pipeline para ver los resultados.
+      <div className="empty-panel">
+        <span className="sec-label">sin ejecución</span>
+        <p>Las métricas aparecen cuando termina el pipeline: tiempo, BER, correcciones y hash de salida.</p>
       </div>
     );
   }
@@ -34,6 +35,11 @@ export function MetricsPanel() {
           <span className="k">Tiempo de Ejecución</span>
           <div className="v">{metrics.elapsedMs.toFixed(0)} ms</div>
           <div className="d">Procesamiento en Web Workers</div>
+        </div>
+        <div className={`metric ${mode === "encode" || metrics.integrity ? 'ok' : ''}`}>
+          <span className="k">Integridad</span>
+          <div className="v">{mode === "encode" ? "base" : metrics.integrity ? "ok" : "hash"}</div>
+          <div className="d">{mode === "encode" ? "Hash original preservado" : "Comparación disponible por SHA-256"}</div>
         </div>
       </div>
 

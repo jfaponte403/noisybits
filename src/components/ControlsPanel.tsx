@@ -7,6 +7,7 @@ import { bitsToBytes, bitsToGroupedBinaryText, unpackBits } from "../lib/bitstre
 export function ControlsPanel() {
   const { mode, codeId, setCodeId, run, running, file, channel, setChannel, result } = usePipelineStore();
   const code = getCode(codeId);
+  const canRun = Boolean(file) && !running;
 
   const downloadFile = () => {
     if (!result) return;
@@ -48,7 +49,29 @@ export function ControlsPanel() {
       {mode === "decode" && (
         <>
           <div className="field">
-            <span className="lbl">Probabilidad de Error (BSC)</span>
+            <span className="lbl">Modelo de canal</span>
+            <div className="segmented" role="group" aria-label="modelo de canal">
+              <button
+                type="button"
+                className="segmented-btn"
+                data-active={channel.mode === "bsc"}
+                onClick={() => setChannel({ mode: "bsc" })}
+              >
+                BSC
+              </button>
+              <button
+                type="button"
+                className="segmented-btn"
+                data-active={channel.mode === "pattern"}
+                onClick={() => setChannel({ mode: "pattern" })}
+              >
+                Patrón
+              </button>
+            </div>
+          </div>
+
+          <div className="field">
+            <span className="lbl">Probabilidad de error</span>
             <div className="flex items-center gap-4">
               <input 
                 type="range" 
@@ -57,6 +80,7 @@ export function ControlsPanel() {
                 step="0.001" 
                 className="pager flex-1"
                 value={channel.bscProbability}
+                disabled={channel.mode !== "bsc"}
                 onChange={(e) => setChannel({ bscProbability: parseFloat(e.target.value) })}
                 style={{ "--p": `${(channel.bscProbability / 0.5) * 100}%` } as React.CSSProperties}
               />
@@ -72,6 +96,7 @@ export function ControlsPanel() {
                     className="input mono" 
                     placeholder="1010..." 
                     value={channel.pattern}
+                    disabled={channel.mode !== "pattern"}
                     onChange={(e) => setChannel({ pattern: e.target.value.replace(/[^01]/g, '') })}
                 />
                 <input 
@@ -79,6 +104,7 @@ export function ControlsPanel() {
                     className="input mono" 
                     placeholder="Pos" 
                     value={channel.patternPosition}
+                    disabled={channel.mode !== "pattern"}
                     onChange={(e) => setChannel({ patternPosition: parseInt(e.target.value, 10) || 0 })}
                 />
               </div>
@@ -87,10 +113,14 @@ export function ControlsPanel() {
       )}
 
       <div className="pt-4 space-y-3">
+        <div className="run-summary">
+          <span>{file ? "entrada lista" : "falta archivo"}</span>
+          <strong>{mode === "encode" ? `${code.k} datos + ${code.n - code.k} paridad` : `${code.n} bits por bloque`}</strong>
+        </div>
         <button
           className="btn primary btn-run flex items-center justify-center gap-2"
           onClick={() => void run()}
-          disabled={!file || running}
+          disabled={!canRun}
         >
           {running ? "Procesando…" : (
               <>

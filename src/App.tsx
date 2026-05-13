@@ -7,7 +7,9 @@ import { MetricsPanel } from "./components/MetricsPanel";
 import { AlgorithmProcess } from "./components/AlgorithmProcess";
 import { BERChart } from "./components/BERChart";
 import { ModePicker } from "./components/ModePicker";
-import { ArrowLeft, Terminal } from "lucide-react";
+import { getCode } from "./lib/encoders/index";
+import { Activity, ArrowLeft, Check, Download, FileCode2, Gauge, RadioTower, Terminal } from "lucide-react";
+import type React from "react";
 
 function Logo() {
   return (
@@ -37,8 +39,94 @@ function Footer() {
   );
 }
 
+function StatusPill({
+  state,
+  label,
+}: {
+  state: "idle" | "ready" | "running" | "done";
+  label: string;
+}) {
+  return (
+    <div className={`status-pill ${state === "idle" ? "warn" : ""} ${state === "running" ? "active" : ""}`}>
+      <span className="led" />
+      {label}
+    </div>
+  );
+}
+
+function JourneyStrip() {
+  const { mode, file, result, running, codeId } = usePipelineStore();
+  const code = getCode(codeId);
+  const stages = mode === "encode"
+    ? [
+        { title: "Entrada", detail: file ? `${file.bytes.length.toLocaleString()} bytes` : "archivo local", icon: FileCode2, state: file ? "done" : "active" },
+        { title: "LDPC", detail: `${code.k}->${code.n}`, icon: Activity, state: result ? "done" : running ? "active" : "upcoming" },
+        { title: "Redundancia", detail: `${Math.round((1 - code.rate) * 100)}% control`, icon: RadioTower, state: result ? "done" : "upcoming" },
+        { title: "Descarga", detail: ".txt binario", icon: Download, state: result ? "active" : "upcoming" },
+      ]
+    : [
+        { title: "Recepción", detail: file ? `${file.bytes.length.toLocaleString()} bytes` : "señal codificada", icon: FileCode2, state: file ? "done" : "active" },
+        { title: "Canal", detail: "BSC + patrón", icon: RadioTower, state: result ? "done" : running ? "active" : "upcoming" },
+        { title: "Síndrome", detail: "H · corrección", icon: Activity, state: result ? "done" : "upcoming" },
+        { title: "Integridad", detail: result ? `${result.metrics.errorsCorrected} reparados` : "hash final", icon: Gauge, state: result ? "active" : "upcoming" },
+      ];
+
+  return (
+    <section className="journey" aria-label="flujo del pipeline">
+      {stages.map((stage, index) => {
+        const Icon = stage.icon;
+        return (
+          <div className="journey-step" data-state={stage.state} key={stage.title}>
+            <div className="journey-node">
+              {stage.state === "done" ? <Check size={14} /> : <Icon size={15} />}
+            </div>
+            <div className="journey-copy">
+              <span className="journey-index">0{index + 1}</span>
+              <strong>{stage.title}</strong>
+              <span>{stage.detail}</span>
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function FlowCard({
+  eyebrow,
+  title,
+  accent,
+  description,
+  children,
+  legend = false,
+  state = "waiting",
+}: {
+  eyebrow: string;
+  title: string;
+  accent: string;
+  description: string;
+  children: React.ReactNode;
+  legend?: boolean;
+  state?: "waiting" | "live" | "done";
+}) {
+  return (
+    <section className="card flow-card" data-state={state}>
+      <div className="card-head">
+        <div className="left">
+          <span className="eyebrow">{eyebrow}</span>
+          <h2>{title} <span className="accent">{accent}</span></h2>
+          <p className="muted">{description}</p>
+        </div>
+        {legend && <Legend />}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 export default function App() {
-  const { mode, result, setMode } = usePipelineStore();
+  const { mode, result, setMode, file, running, codeId } = usePipelineStore();
+  const code = getCode(codeId);
 
   if (!mode) {
     return (
@@ -55,11 +143,11 @@ export default function App() {
             </div>
           </div>
         </header>
-        <main className="flex flex-col items-center justify-center flex-1 gap-8 py-12">
-            <div className="text-center space-y-2">
-                <span className="eyebrow">Bienvenido</span>
-                <h2 className="text-3xl font-bold text-tx-1">Potenciando la <span className="accent">Integridad</span> de Datos</h2>
-                <p className="text-tx-3 max-w-md mx-auto">Explora el funcionamiento de los códigos LDPC (Low-Density Parity-Check) paso a paso.</p>
+        <main className="home-shell">
+            <div className="home-intro">
+                <span className="eyebrow">laboratorio LDPC</span>
+                <h2>Visualizá cómo un archivo gana <span className="accent">redundancia</span>, atraviesa ruido y vuelve a verificarse.</h2>
+                <p>Elegí una dirección del pipeline. Cada etapa muestra qué bits cambian, qué control se agregó y qué evidencia deja el algoritmo.</p>
             </div>
             <ModePicker />
         </main>
@@ -82,10 +170,14 @@ export default function App() {
             </div>
           </div>
         </div>
-        <div className="flex gap-4">
+        <div className="top-actions">
+          <StatusPill
+            state={running ? "running" : result ? "done" : file ? "ready" : "idle"}
+            label={running ? "procesando" : result ? "pipeline completo" : file ? "archivo listo" : "sin archivo"}
+          />
           <button onClick={() => setMode(null)} className="btn ghost btn-sm flex items-center gap-2">
             <ArrowLeft size={14} />
-            Cambiar Proceso
+            Cambiar
           </button>
           <a href="https://github.com/jfaponte403/noisybits" target="_blank" rel="noopener noreferrer" className="btn ghost btn-sm flex items-center gap-2">
             <Terminal size={16} />
@@ -94,93 +186,97 @@ export default function App() {
         </div>
       </header>
 
-      <main className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8 flex-1">
-        <aside className="space-y-6">
-          <section className="card">
+      <JourneyStrip />
+
+      <main className="workspace">
+        <aside className="control-rail">
+          <section className="card control-card">
             <div className="card-head">
               <div className="left">
-                <span className="eyebrow">{mode === "encode" ? "Configuración" : "Recepción"}</span>
-                <h2>Panel de <span className="accent">Control</span></h2>
+                <span className="eyebrow">{mode === "encode" ? "configuración" : "recepción"}</span>
+                <h2>Control del <span className="accent">pipeline</span></h2>
+                <p className="muted">{code.label}. Tasa {code.rate.toFixed(3)} con bloques {code.k}{" -> "}{code.n}.</p>
               </div>
             </div>
             <ControlsPanel />
           </section>
-
-          {result && <AlgorithmProcess />}
         </aside>
 
-        <div className="space-y-8">
+        <div className="stage-area">
+          <AlgorithmProcess />
+
           {mode === "encode" ? (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                <section className="card">
-                <div className="card-head">
-                    <div className="left">
-                    <span className="eyebrow">Etapa 1</span>
-                    <h2>Bits <span className="accent">Originales</span></h2>
-                    </div>
-                    <Legend />
-                </div>
+            <div className="flow-grid">
+                <FlowCard
+                  eyebrow="paso 1 · entrada"
+                  title="Bits"
+                  accent="originales"
+                  description="Carga útil antes de aplicar la matriz generadora."
+                  legend
+                  state={result ? "done" : file ? "live" : "waiting"}
+                >
                 <BitGrid 
                     bits={result ? unpackBits(result.original.bits, result.original.length) : null} 
                     metadata={result?.original.metadata}
                     emptyHint="Carga un archivo y ejecuta la codificación." 
                 />
-                </section>
+                </FlowCard>
 
-                <section className="card">
-                <div className="card-head">
-                    <div className="left">
-                    <span className="eyebrow">Etapa 2</span>
-                    <h2>Bits <span className="accent">Codificados</span></h2>
-                    </div>
-                </div>
+                <FlowCard
+                  eyebrow="paso 2 · salida"
+                  title="Bits"
+                  accent="codificados"
+                  description="Datos sistemáticos más paridad lista para transportar."
+                  state={result ? "done" : "waiting"}
+                >
                 <BitGrid 
                     bits={result ? unpackBits(result.encoded.bits, result.encoded.length) : null} 
                     metadata={result?.encoded.metadata}
                     emptyHint="La redundancia se visualizará aquí tras procesar." 
                 />
-                </section>
+                </FlowCard>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                <section className="card">
-                <div className="card-head">
-                    <div className="left">
-                    <span className="eyebrow">Etapa 1</span>
-                    <h2>Bits <span className="accent">Recibidos</span></h2>
-                    </div>
-                    <Legend />
-                </div>
+            <div className="flow-grid">
+                <FlowCard
+                  eyebrow="paso 1 · canal"
+                  title="Bits"
+                  accent="recibidos"
+                  description="Secuencia codificada después del ruido configurado."
+                  legend
+                  state={result ? "done" : file ? "live" : "waiting"}
+                >
                 <BitGrid 
                     bits={result ? unpackBits(result.received.bits, result.received.length) : null} 
                     metadata={result?.received.metadata}
                     emptyHint="La señal con ruido aparecerá aquí tras procesar." 
                 />
-                </section>
+                </FlowCard>
 
-                <section className="card">
-                <div className="card-head">
-                    <div className="left">
-                    <span className="eyebrow">Etapa 2</span>
-                    <h2>Bits <span className="accent">Decodificados</span></h2>
-                    </div>
-                </div>
+                <FlowCard
+                  eyebrow="paso 2 · corrección"
+                  title="Bits"
+                  accent="decodificados"
+                  description="Carga útil extraída después de síndrome y corrección."
+                  state={result ? "done" : "waiting"}
+                >
                 <BitGrid 
                     bits={result ? unpackBits(result.decoded.bits, result.decoded.length) : null} 
                     metadata={result?.decoded.metadata}
                     emptyHint="Resultado de la corrección de errores." 
                 />
-                </section>
+                </FlowCard>
             </div>
           )}
 
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-8">
+          <div className="analysis-grid">
             <BERChart />
             <section className="card">
               <div className="card-head">
                 <div className="left">
-                  <span className="eyebrow">Análisis</span>
-                  <h2>Métricas e <span className="accent">Integridad</span></h2>
+                  <span className="eyebrow">verificación</span>
+                  <h2>Métricas e <span className="accent">integridad</span></h2>
+                  <p className="muted">Evidencia final del procesamiento local.</p>
                 </div>
               </div>
               <MetricsPanel />
