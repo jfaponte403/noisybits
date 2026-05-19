@@ -11,12 +11,18 @@ import { LDPCExplainer, LearnButton } from "./components/LDPCExplainer";
 import { InspectorDrawer } from "./components/InspectorDrawer";
 import { getCode } from "./lib/encoders/index";
 import { Activity, BookOpen, Check, Download, FileCode2, Gauge, RadioTower, Terminal } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type React from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import type { AppMode } from "./store/pipelineStore";
 
 const SECTION_IDS = ["sec-entrada", "sec-ldpc", "sec-redundancia", "sec-descarga"] as const;
 type SectionId = (typeof SECTION_IDS)[number];
+
+const MODE_PATH: Record<AppMode, string> = {
+  encode: "/codificar",
+  decode: "/decodificar",
+};
 
 function scrollToSection(id: SectionId) {
   const el = document.getElementById(id);
@@ -117,10 +123,11 @@ function StatusPill({
 }
 
 function ModeToggle() {
-  const { mode, setMode } = usePipelineStore();
+  const navigate = useNavigate();
+  const { mode } = usePipelineStore();
   if (!mode) return null;
   const select = (m: AppMode) => {
-    if (m !== mode) setMode(m);
+    if (m !== mode) navigate(MODE_PATH[m]);
   };
   return (
     <div className="mode-toggle" role="tablist" aria-label="Modo del pipeline">
@@ -229,90 +236,95 @@ function FlowCard({
   );
 }
 
-function LearnOverlay({ onClose }: { onClose: () => void }) {
+function HomePage() {
+  const navigate = useNavigate();
   const { setMode } = usePipelineStore();
+
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
+    setMode(null);
+  }, [setMode]);
 
   return (
-    <div className="learn-overlay" role="dialog" aria-modal="true" aria-label="Aprender LDPC">
-      <div className="learn-overlay-backdrop" onClick={onClose} />
-      <div className="learn-overlay-panel" role="document">
-        <LDPCExplainer
-          onBack={onClose}
-          onStart={(m) => {
-            onClose();
-            setMode(m);
-          }}
+    <div className="app min-h-screen">
+      <Toast />
+      <header className="topbar">
+        <Brand
+          subtitle={
+            <>
+              instrumento de laboratorio<span className="sep">·</span>precisión técnica<span className="sep">·</span>LDPC
+            </>
+          }
         />
-      </div>
+      </header>
+      <main className="home-shell">
+        <div className="home-intro">
+          <span className="eyebrow">laboratorio LDPC</span>
+          <h2>Visualizá cómo un archivo gana <span className="accent">redundancia</span>, atraviesa ruido y vuelve a verificarse.</h2>
+          <p>Elegí una dirección del pipeline. Cada etapa muestra qué bits cambian, qué control se agregó y qué evidencia deja el algoritmo.</p>
+        </div>
+        <div className="home-picker">
+          <ModePicker onSelect={(m) => navigate(MODE_PATH[m])} />
+          <LearnButton onClick={() => navigate("/aprender")} />
+        </div>
+      </main>
+      <Footer />
     </div>
   );
 }
 
-export default function App() {
+function LearnPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { setMode } = usePipelineStore();
+
+  const goBack = () => {
+    const from = (location.state as { from?: string } | null)?.from;
+    if (from) navigate(from);
+    else navigate(-1);
+  };
+
+  return (
+    <div className="app min-h-screen">
+      <Toast />
+      <header className="topbar">
+        <Brand
+          onHome={() => navigate("/")}
+          subtitle="LDPC: Aprender"
+        />
+      </header>
+      <LDPCExplainer
+        onBack={goBack}
+        onStart={(m) => {
+          setMode(m);
+          navigate(MODE_PATH[m]);
+        }}
+      />
+      <Footer />
+    </div>
+  );
+}
+
+function WorkspacePage({ pageMode }: { pageMode: AppMode }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { mode, result, setMode, file, running, codeId, setInspect } = usePipelineStore();
-  const [showLearn, setShowLearn] = useState(false);
   const activeSection = useScrollSpy(SECTION_IDS);
   const code = getCode(codeId);
-  const openLearn = useCallback(() => setShowLearn(true), []);
-  const closeLearn = useCallback(() => setShowLearn(false), []);
 
-  if (!mode) {
-    return (
-      <div className="app min-h-screen">
-        <Toast />
-        <header className="topbar">
-          <Brand
-            subtitle={
-              <>
-                instrumento de laboratorio<span className="sep">·</span>precisión técnica<span className="sep">·</span>LDPC
-              </>
-            }
-          />
-        </header>
-        {showLearn ? (
-          <LDPCExplainer
-            onBack={closeLearn}
-            onStart={(m) => { closeLearn(); setMode(m); }}
-          />
-        ) : (
-          <main className="home-shell">
-              <div className="home-intro">
-                  <span className="eyebrow">laboratorio LDPC</span>
-                  <h2>Visualizá cómo un archivo gana <span className="accent">redundancia</span>, atraviesa ruido y vuelve a verificarse.</h2>
-                  <p>Elegí una dirección del pipeline. Cada etapa muestra qué bits cambian, qué control se agregó y qué evidencia deja el algoritmo.</p>
-              </div>
-              <div className="home-picker">
-                <ModePicker />
-                <LearnButton onClick={openLearn} />
-              </div>
-          </main>
-        )}
-        <Footer />
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (mode !== pageMode) setMode(pageMode);
+  }, [pageMode, mode, setMode]);
+
+  if (mode !== pageMode) return null;
 
   return (
     <div className="app min-h-screen">
       <Toast />
       <InspectorDrawer />
-      {showLearn && <LearnOverlay onClose={closeLearn} />}
 
       <header className="topbar">
         <Brand
-          onHome={() => setMode(null)}
+          onHome={() => navigate("/")}
           subtitle={mode === "encode" ? "LDPC: Codificación" : "LDPC: Decodificación"}
         />
         <ModeToggle />
@@ -323,7 +335,7 @@ export default function App() {
           />
           <button
             type="button"
-            onClick={openLearn}
+            onClick={() => navigate("/aprender", { state: { from: location.pathname } })}
             className="btn ghost btn-sm flex items-center gap-2"
             aria-label="Abrir guía de aprendizaje"
           >
@@ -444,5 +456,17 @@ export default function App() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/aprender" element={<LearnPage />} />
+      <Route path="/codificar" element={<WorkspacePage pageMode="encode" />} />
+      <Route path="/decodificar" element={<WorkspacePage pageMode="decode" />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
