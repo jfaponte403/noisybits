@@ -62,6 +62,13 @@ function createSystematicLDPC(id: string, label: string, k: number, m: number): 
   };
 }
 
+export const LDPC_8_24: LDPCCode = createSystematicLDPC(
+  "ldpc_8_24",
+  "LDPC 1/3 (24, 8)",
+  8,
+  16
+);
+
 export const LDPC_8_16: LDPCCode = createSystematicLDPC(
   "ldpc_8_16",
   "LDPC 1/2 (16, 8)",
@@ -81,6 +88,27 @@ export const LDPC_24_32: LDPCCode = createSystematicLDPC(
   "LDPC 3/4 (32, 24)",
   24,
   8
+);
+
+export const LDPC_20_25: LDPCCode = createSystematicLDPC(
+  "ldpc_20_25",
+  "LDPC 4/5 (25, 20)",
+  20,
+  5
+);
+
+export const LDPC_25_30: LDPCCode = createSystematicLDPC(
+  "ldpc_25_30",
+  "LDPC 10/12 (30, 25)",
+  25,
+  5
+);
+
+export const LDPC_42_48: LDPCCode = createSystematicLDPC(
+  "ldpc_42_48",
+  "LDPC 7/8 (48, 42)",
+  42,
+  6
 );
 
 export const LDPC_7_4: LDPCCode = {
@@ -108,7 +136,16 @@ export const LDPC_7_4: LDPCCode = {
   ],
 };
 
-export const ALL_LDPC: LDPCCode[] = [LDPC_8_16, LDPC_8_12, LDPC_24_32, LDPC_7_4];
+export const ALL_LDPC: LDPCCode[] = [
+  LDPC_8_24,
+  LDPC_8_16,
+  LDPC_8_12,
+  LDPC_24_32,
+  LDPC_20_25,
+  LDPC_25_30,
+  LDPC_42_48,
+  LDPC_7_4,
+];
 
 export interface LDPCEncodeTrace {
   codeword: Bit[];
