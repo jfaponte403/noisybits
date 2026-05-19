@@ -5,6 +5,7 @@ import { Toast } from "./components/Toast";
 import { unpackBits } from "./lib/bitstream/BitArray";
 import { MetricsPanel } from "./components/MetricsPanel";
 import { AlgorithmProcess } from "./components/AlgorithmProcess";
+import { AlgorithmTrace } from "./components/AlgorithmTrace";
 import { BERChart } from "./components/BERChart";
 import { ModePicker } from "./components/ModePicker";
 import { LDPCExplainer, LearnButton } from "./components/LDPCExplainer";
@@ -366,8 +367,9 @@ function WorkspacePage({ pageMode }: { pageMode: AppMode }) {
         </aside>
 
         <div className="stage-area">
-          <div id="sec-ldpc" className="anchor">
+          <div id="sec-ldpc" className="anchor algo-section">
             <AlgorithmProcess />
+            <AlgorithmTrace />
           </div>
 
           {mode === "encode" ? (
