@@ -12,55 +12,33 @@ import { LDPCExplainer, LearnButton } from "./components/LDPCExplainer";
 import { InspectorDrawer } from "./components/InspectorDrawer";
 import { getCode } from "./lib/encoders/index";
 import { Activity, BookOpen, Check, Download, FileCode2, Gauge, RadioTower, Terminal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type React from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import type { AppMode } from "./store/pipelineStore";
-
-const SECTION_IDS = ["sec-entrada", "sec-ldpc", "sec-redundancia", "sec-descarga"] as const;
-type SectionId = (typeof SECTION_IDS)[number];
 
 const MODE_PATH: Record<AppMode, string> = {
   encode: "/codificar",
   decode: "/decodificar",
 };
 
-function scrollToSection(id: SectionId) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.scrollIntoView({ behavior: "smooth", block: "start" });
+type StageState = "done" | "active" | "upcoming";
+
+interface PipelineStage {
+  title: string;
+  detail: string;
+  icon: typeof FileCode2;
+  state: StageState;
 }
 
-function useScrollSpy(ids: readonly string[]): number | null {
-  const [active, setActive] = useState<number | null>(null);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const resolve = () =>
-      ids
-        .map((id, i) => {
-          const el = document.getElementById(id);
-          return el ? { el, i } : null;
-        })
-        .filter((x): x is { el: HTMLElement; i: number } => x !== null);
+type TabKey = "pipeline" | "matrix" | "bits" | "metrics";
 
-    let tracked = resolve();
-    if (tracked.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      () => {
-        const ranked = tracked
-          .map((t) => ({ i: t.i, rect: t.el.getBoundingClientRect() }))
-          .filter((t) => t.rect.bottom > 120 && t.rect.top < window.innerHeight * 0.5)
-          .sort((a, b) => a.rect.top - b.rect.top);
-        if (ranked[0]) setActive(ranked[0].i);
-      },
-      { rootMargin: "-30% 0px -55% 0px", threshold: [0, 0.25, 0.5, 1] }
-    );
-    tracked.forEach((t) => observer.observe(t.el));
-    return () => observer.disconnect();
-  }, [ids.join("|")]);
-  return active;
-}
+const TABS: ReadonlyArray<{ key: TabKey; label: string; shortcut: string }> = [
+  { key: "pipeline", label: "Pipeline", shortcut: "1" },
+  { key: "matrix", label: "Matriz", shortcut: "2" },
+  { key: "bits", label: "Bits", shortcut: "3" },
+  { key: "metrics", label: "Métricas", shortcut: "4" },
+];
 
 function Logo() {
   return (
@@ -72,13 +50,13 @@ function Logo() {
   );
 }
 
-function Brand({ subtitle, onHome }: { subtitle: React.ReactNode; onHome?: () => void }) {
+function Brand({ subtitle, onHome }: { subtitle?: React.ReactNode; onHome?: () => void }) {
   const content = (
     <>
       <Logo />
       <div>
         <h1>Channel Coding Visualizer</h1>
-        <div className="sub">{subtitle}</div>
+        {subtitle && <div className="sub">{subtitle}</div>}
       </div>
     </>
   );
@@ -99,7 +77,7 @@ function Footer() {
       <div className="foot-row">
         <span>© {new Date().getFullYear()} noisybits</span>
         <span className="dot">·</span>
-        <a href="https://github.com/jfaponte403/noisybits" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+        <a href="https://github.com/jfaponte403/noisybits" target="_blank" rel="noopener noreferrer">
           <Terminal size={12} />
           GitHub
         </a>
@@ -112,11 +90,17 @@ function StatusPill({
   state,
   label,
 }: {
-  state: "idle" | "ready" | "running" | "done";
+  state: "idle" | "ready" | "running" | "done" | "warn";
   label: string;
 }) {
+  const variant =
+    state === "running" ? "active" :
+    state === "done" ? "ok" :
+    state === "warn" ? "warn" :
+    state === "ready" ? "" :
+    "";
   return (
-    <div className={`status-pill ${state === "idle" ? "warn" : ""} ${state === "running" ? "active" : ""}`}>
+    <div className={"status-pill" + (variant ? " " + variant : "")}>
       <span className="led" />
       {label}
     </div>
@@ -154,54 +138,119 @@ function ModeToggle() {
   );
 }
 
-function JourneyStrip({ activeSection }: { activeSection: number | null }) {
-  const { mode, file, result, running, codeId } = usePipelineStore();
-  const code = getCode(codeId);
-  const stages = mode === "encode"
-    ? [
-        { title: "Entrada", detail: file ? `${file.bytes.length.toLocaleString()} bytes` : "archivo local", icon: FileCode2, state: file ? "done" : "active" },
-        { title: "LDPC", detail: `${code.k}->${code.n}`, icon: Activity, state: result ? "done" : running ? "active" : "upcoming" },
-        { title: "Redundancia", detail: `${Math.round((1 - code.rate) * 100)}% control`, icon: RadioTower, state: result ? "done" : "upcoming" },
-        { title: "Descarga", detail: ".txt binario", icon: Download, state: result ? "active" : "upcoming" },
-      ]
-    : [
-        { title: "Recepción", detail: file ? `${file.bytes.length.toLocaleString()} bytes` : "señal codificada", icon: FileCode2, state: file ? "done" : "active" },
-        { title: "Síndrome", detail: "H · r por bloque", icon: Activity, state: result ? "done" : running ? "active" : "upcoming" },
-        { title: "Corrección", detail: result ? `${result.metrics.errorsCorrected} reparados` : "bit-flipping", icon: RadioTower, state: result ? "done" : "upcoming" },
-        { title: "Integridad", detail: result ? `${result.metrics.errorsUncorrected === 0 ? "síndrome 0" : "residual"}` : "hash final", icon: Gauge, state: result ? "active" : "upcoming" },
-      ];
-
+function BrandMeta({ mode, codeLabel, bits, status }: {
+  mode: AppMode;
+  codeLabel: string;
+  bits: string;
+  status: string;
+}) {
   return (
-    <nav className="journey" aria-label="navegación del pipeline">
-      {stages.map((stage, index) => {
+    <div className="brand-meta-row">
+      <div className="brand-meta" aria-label="Contexto operativo">
+        <span className="meta-key">modo</span>
+        <span className="meta-val">{mode === "encode" ? "encode" : "decode"}</span>
+        <span className="meta-sep" aria-hidden />
+        <span className="meta-key">código</span>
+        <span className="meta-val">{codeLabel}</span>
+        <span className="meta-sep" aria-hidden />
+        <span className="meta-key">entrada</span>
+        <span className="meta-val">{bits}</span>
+        <span className="meta-sep" aria-hidden />
+        <span className="meta-key">estado</span>
+        <span className="meta-val">{status}</span>
+      </div>
+    </div>
+  );
+}
+
+function PipelineRail({
+  stages,
+  activeTab,
+  onJump,
+}: {
+  stages: PipelineStage[];
+  activeTab: TabKey;
+  onJump: (tab: TabKey) => void;
+}) {
+  return (
+    <nav className="pipeline-rail" aria-label="Etapas del pipeline">
+      {stages.map((stage, i) => {
         const Icon = stage.icon;
-        const sectionId = SECTION_IDS[index];
-        const isCurrent = activeSection === index;
+        const tab = TABS[i].key;
+        const isActiveTab = tab === activeTab;
         return (
-          <a
-            className="journey-step"
-            data-state={stage.state}
-            data-current={isCurrent ? "true" : undefined}
+          <button
+            type="button"
             key={stage.title}
-            href={`#${sectionId}`}
-            aria-current={isCurrent ? "true" : undefined}
-            onClick={(e) => {
-              e.preventDefault();
-              scrollToSection(sectionId);
-            }}
+            className="pipeline-rail-step"
+            data-state={stage.state}
+            data-active={isActiveTab ? "true" : undefined}
+            onClick={() => onJump(tab)}
+            aria-current={isActiveTab ? "step" : undefined}
+            aria-label={`${stage.title} — ir a la pestaña ${TABS[i].label}`}
           >
-            <div className="journey-node" aria-hidden="true">
-              {stage.state === "done" ? <Check size={14} /> : <Icon size={15} />}
-            </div>
-            <div className="journey-copy">
-              <span className="journey-index">0{index + 1}</span>
-              <strong>{stage.title}</strong>
-              <span>{stage.detail}</span>
-            </div>
-          </a>
+            <span className="pipeline-rail-node" aria-hidden="true">
+              {stage.state === "done" ? <Check size={13} /> : <Icon size={13} />}
+            </span>
+            <span className="pipeline-rail-copy">
+              <span className="pipeline-rail-title">{stage.title}</span>
+              <span className="pipeline-rail-detail">{stage.detail}</span>
+            </span>
+          </button>
         );
       })}
     </nav>
+  );
+}
+
+function buildStages(opts: {
+  mode: AppMode;
+  file: { bytes: Uint8Array } | null;
+  result: ReturnType<typeof usePipelineStore.getState>["result"];
+  running: boolean;
+  code: ReturnType<typeof getCode>;
+}): PipelineStage[] {
+  const { mode, file, result, running, code } = opts;
+  if (mode === "encode") {
+    return [
+      { title: "Entrada", detail: file ? `${file.bytes.length.toLocaleString()} bytes` : "archivo local", icon: FileCode2, state: file ? "done" : "active" },
+      { title: "LDPC", detail: `${code.k}→${code.n}`, icon: Activity, state: result ? "done" : running ? "active" : "upcoming" },
+      { title: "Redundancia", detail: `${Math.round((1 - code.rate) * 100)}% control`, icon: RadioTower, state: result ? "done" : "upcoming" },
+      { title: "Descarga", detail: ".txt binario", icon: Download, state: result ? "active" : "upcoming" },
+    ];
+  }
+  return [
+    { title: "Recepción", detail: file ? `${file.bytes.length.toLocaleString()} bytes` : "señal codificada", icon: FileCode2, state: file ? "done" : "active" },
+    { title: "Síndrome", detail: "H · r por bloque", icon: Activity, state: result ? "done" : running ? "active" : "upcoming" },
+    { title: "Corrección", detail: result ? `${result.metrics.errorsCorrected} reparados` : "bit-flipping", icon: RadioTower, state: result ? "done" : "upcoming" },
+    { title: "Integridad", detail: result ? (result.metrics.errorsUncorrected === 0 ? "síndrome 0" : "residual") : "hash final", icon: Gauge, state: result ? "active" : "upcoming" },
+  ];
+}
+
+function StageTabs({
+  active,
+  onSelect,
+}: {
+  active: TabKey;
+  onSelect: (k: TabKey) => void;
+}) {
+  return (
+    <div className="stage-tablist" role="tablist" aria-label="Vista del stage">
+      {TABS.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          role="tab"
+          aria-selected={t.key === active}
+          data-active={t.key === active ? "true" : undefined}
+          className="stage-tab"
+          onClick={() => onSelect(t.key)}
+        >
+          <span className="stage-tab-key" aria-hidden="true">{t.shortcut}</span>
+          {t.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -259,7 +308,7 @@ function HomePage() {
       </header>
       <main className="home-shell">
         <div className="home-intro">
-          <span className="eyebrow">laboratorio LDPC</span>
+          <span className="eyebrow is-accent">laboratorio LDPC</span>
           <h2>Cómo un archivo gana <span className="accent">redundancia</span>, atraviesa ruido y vuelve a verificarse.</h2>
           <p>Elegí una dirección del pipeline. Cada etapa muestra qué bits cambian, qué control se agregó y qué evidencia deja el algoritmo. Todo corre local, sin enviar nada al servidor.</p>
           <div className="home-meta">
@@ -293,10 +342,7 @@ function LearnPage() {
     <div className="app min-h-screen">
       <Toast />
       <header className="topbar">
-        <Brand
-          onHome={() => navigate("/")}
-          subtitle="LDPC: Aprender"
-        />
+        <Brand onHome={() => navigate("/")} subtitle="LDPC: Aprender" />
       </header>
       <LDPCExplainer
         onBack={goBack}
@@ -314,57 +360,103 @@ function WorkspacePage({ pageMode }: { pageMode: AppMode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { mode, result, setMode, file, running, codeId, setInspect } = usePipelineStore();
-  const activeSection = useScrollSpy(SECTION_IDS);
   const code = getCode(codeId);
+
+  const [activeTab, setActiveTab] = useState<TabKey>("pipeline");
 
   useEffect(() => {
     if (mode !== pageMode) setMode(pageMode);
   }, [pageMode, mode, setMode]);
 
+  // Auto-advance to métricas once the pipeline completes (only if user hasn't moved).
+  const [autoJumped, setAutoJumped] = useState(false);
+  useEffect(() => {
+    if (result && !autoJumped && activeTab === "pipeline") {
+      setActiveTab("metrics");
+      setAutoJumped(true);
+    }
+    if (!result) setAutoJumped(false);
+  }, [result, autoJumped, activeTab]);
+
+  // Keyboard 1–4 shortcuts.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if ((e.target as HTMLElement)?.matches?.("input, textarea, select, [contenteditable='true']")) return;
+      const idx = ["1", "2", "3", "4"].indexOf(e.key);
+      if (idx >= 0) {
+        setActiveTab(TABS[idx].key);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const jumpTo = useCallback((tab: TabKey) => setActiveTab(tab), []);
+
   if (mode !== pageMode) return null;
+
+  const stages = buildStages({ mode, file, result, running, code });
+
+  const pillState: "idle" | "ready" | "running" | "done" | "warn" =
+    running ? "running" :
+    result ? (result.metrics.errorsUncorrected === 0 ? "done" : "warn") :
+    file ? "ready" :
+    "idle";
+  const pillLabel =
+    running ? "procesando…" :
+    result ? (result.metrics.errorsUncorrected === 0 ? "pipeline ok" : "pipeline con residuales") :
+    file ? "archivo listo" :
+    "sin archivo";
+
+  const inputSummary = file ? `${file.bytes.length.toLocaleString()} bytes` : "—";
 
   return (
     <div className="app min-h-screen">
       <Toast />
       <InspectorDrawer />
 
-      <header className="topbar">
-        <Brand
-          onHome={() => navigate("/")}
-          subtitle={mode === "encode" ? "LDPC: Codificación" : "LDPC: Decodificación"}
-        />
-        <ModeToggle />
-        <div className="top-actions">
-          <StatusPill
-            state={running ? "running" : result ? "done" : file ? "ready" : "idle"}
-            label={running ? "procesando" : result ? "pipeline completo" : file ? "archivo listo" : "sin archivo"}
+      <header className="topbar-v2">
+        <div className="top-row row-1">
+          <Brand onHome={() => navigate("/")} />
+          <div className="top-actions">
+            <StatusPill state={pillState} label={pillLabel} />
+            <button
+              type="button"
+              onClick={() => navigate("/aprender", { state: { from: location.pathname } })}
+              className="btn ghost btn-sm"
+              aria-label="Abrir guía de aprendizaje"
+            >
+              <BookOpen size={14} />
+              Aprender
+            </button>
+            <a href="https://github.com/jfaponte403/noisybits" target="_blank" rel="noopener noreferrer" className="btn ghost btn-sm">
+              <Terminal size={14} />
+              GitHub
+            </a>
+          </div>
+        </div>
+        <div className="top-row row-2">
+          <ModeToggle />
+          <BrandMeta
+            mode={mode}
+            codeLabel={`${code.label} · k=${code.k}→n=${code.n}`}
+            bits={inputSummary}
+            status={pillLabel}
           />
-          <button
-            type="button"
-            onClick={() => navigate("/aprender", { state: { from: location.pathname } })}
-            className="btn ghost btn-sm flex items-center gap-2"
-            aria-label="Abrir guía de aprendizaje"
-          >
-            <BookOpen size={14} />
-            Aprender
-          </button>
-          <a href="https://github.com/jfaponte403/noisybits" target="_blank" rel="noopener noreferrer" className="btn ghost btn-sm flex items-center gap-2">
-            <Terminal size={16} />
-            GitHub
-          </a>
         </div>
       </header>
 
-      <JourneyStrip activeSection={activeSection} />
+      <PipelineRail stages={stages} activeTab={activeTab} onJump={jumpTo} />
 
-      <main className="workspace">
-        <aside id="sec-entrada" className="control-rail anchor">
-          <section className="card control-card">
+      <main className="workspace-v2">
+        <aside className="control-rail">
+          <section className="card control-card-v2">
             <div className="card-head">
               <div className="left">
-                <span className="eyebrow">{mode === "encode" ? "configuración" : "recepción"}</span>
+                <span className="eyebrow">{mode === "encode" ? "Configuración" : "Recepción"}</span>
                 <h2>Control del <span className="accent">pipeline</span></h2>
-                <p className="muted">{code.label}. Tasa {code.rate.toFixed(3)} con bloques {code.k}{" -> "}{code.n}.</p>
+                <p className="muted">{code.label}. Tasa {code.rate.toFixed(3)} con bloques {code.k} → {code.n}.</p>
               </div>
             </div>
             <ControlsPanel />
@@ -372,91 +464,106 @@ function WorkspacePage({ pageMode }: { pageMode: AppMode }) {
         </aside>
 
         <div className="stage-area">
-          <div id="sec-ldpc" className="anchor algo-section">
-            <AlgorithmProcess />
-            <AlgorithmTrace />
-          </div>
+          <div className="stage-tabs">
+            <StageTabs active={activeTab} onSelect={setActiveTab} />
 
-          {mode === "encode" ? (
-            <div id="sec-redundancia" className="flow-grid anchor">
-                <FlowCard
-                  eyebrow="paso 1 · entrada"
-                  title="Bits"
-                  accent="originales"
-                  description="Carga útil antes de aplicar la matriz generadora."
-                  legend
-                  state={result ? "done" : file ? "live" : "waiting"}
-                >
-                <BitGrid
-                    bits={result ? unpackBits(result.original.bits, result.original.length) : null}
-                    metadata={result?.original.metadata}
-                    emptyHint="Carga un archivo y ejecuta la codificación."
-                    onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "encode", which: "original", index: i }) : undefined}
-                />
-                </FlowCard>
-
-                <FlowCard
-                  eyebrow="paso 2 · salida"
-                  title="Bits"
-                  accent="codificados"
-                  description="Datos sistemáticos más paridad lista para transportar."
-                  state={result ? "done" : "waiting"}
-                >
-                <BitGrid
-                    bits={result ? unpackBits(result.encoded.bits, result.encoded.length) : null}
-                    metadata={result?.encoded.metadata}
-                    emptyHint="La redundancia se visualizará aquí tras procesar."
-                    onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "encode", which: "encoded", index: i }) : undefined}
-                />
-                </FlowCard>
-            </div>
-          ) : (
-            <div id="sec-redundancia" className="flow-grid anchor">
-                <FlowCard
-                  eyebrow="paso 1 · canal"
-                  title="Bits"
-                  accent="recibidos"
-                  description="Secuencia codificada después del ruido configurado."
-                  legend
-                  state={result ? "done" : file ? "live" : "waiting"}
-                >
-                <BitGrid
-                    bits={result ? unpackBits(result.received.bits, result.received.length) : null}
-                    metadata={result?.received.metadata}
-                    emptyHint="La señal con ruido aparecerá aquí tras procesar."
-                    onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "decode", which: "received", index: i }) : undefined}
-                />
-                </FlowCard>
-
-                <FlowCard
-                  eyebrow="paso 2 · corrección"
-                  title="Bits"
-                  accent="decodificados"
-                  description="Carga útil extraída después de síndrome y corrección."
-                  state={result ? "done" : "waiting"}
-                >
-                <BitGrid
-                    bits={result ? unpackBits(result.decoded.bits, result.decoded.length) : null}
-                    metadata={result?.decoded.metadata}
-                    emptyHint="Resultado de la corrección de errores."
-                    onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "decode", which: "decoded", index: i }) : undefined}
-                />
-                </FlowCard>
-            </div>
-          )}
-
-          <div id="sec-descarga" className="analysis-grid anchor">
-            <BERChart />
-            <section className="card">
-              <div className="card-head">
-                <div className="left">
-                  <span className="eyebrow">verificación</span>
-                  <h2>Métricas e <span className="accent">integridad</span></h2>
-                  <p className="muted">Evidencia final del procesamiento local.</p>
-                </div>
+            {activeTab === "pipeline" && (
+              <div className="stage-tabpanel" role="tabpanel" aria-label="Pipeline">
+                <AlgorithmProcess />
               </div>
-              <MetricsPanel />
-            </section>
+            )}
+
+            {activeTab === "matrix" && (
+              <div className="stage-tabpanel" role="tabpanel" aria-label="Matriz en vivo">
+                <AlgorithmTrace />
+              </div>
+            )}
+
+            {activeTab === "bits" && (
+              <div className="stage-tabpanel" role="tabpanel" aria-label="Bits">
+                {mode === "encode" ? (
+                  <div className="flow-grid">
+                    <FlowCard
+                      eyebrow="paso 1 · entrada"
+                      title="Bits"
+                      accent="originales"
+                      description="Carga útil antes de aplicar la matriz generadora."
+                      legend
+                      state={result ? "done" : file ? "live" : "waiting"}
+                    >
+                      <BitGrid
+                        bits={result ? unpackBits(result.original.bits, result.original.length) : null}
+                        metadata={result?.original.metadata}
+                        emptyHint="Cargá un archivo y ejecutá la codificación."
+                        onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "encode", which: "original", index: i }) : undefined}
+                      />
+                    </FlowCard>
+                    <FlowCard
+                      eyebrow="paso 2 · salida"
+                      title="Bits"
+                      accent="codificados"
+                      description="Datos sistemáticos más paridad listos para transportar."
+                      state={result ? "done" : "waiting"}
+                    >
+                      <BitGrid
+                        bits={result ? unpackBits(result.encoded.bits, result.encoded.length) : null}
+                        metadata={result?.encoded.metadata}
+                        emptyHint="La redundancia se visualizará aquí tras procesar."
+                        onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "encode", which: "encoded", index: i }) : undefined}
+                      />
+                    </FlowCard>
+                  </div>
+                ) : (
+                  <div className="flow-grid">
+                    <FlowCard
+                      eyebrow="paso 1 · canal"
+                      title="Bits"
+                      accent="recibidos"
+                      description="Secuencia codificada después del ruido configurado."
+                      legend
+                      state={result ? "done" : file ? "live" : "waiting"}
+                    >
+                      <BitGrid
+                        bits={result ? unpackBits(result.received.bits, result.received.length) : null}
+                        metadata={result?.received.metadata}
+                        emptyHint="La señal con ruido aparecerá aquí tras procesar."
+                        onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "decode", which: "received", index: i }) : undefined}
+                      />
+                    </FlowCard>
+                    <FlowCard
+                      eyebrow="paso 2 · corrección"
+                      title="Bits"
+                      accent="decodificados"
+                      description="Carga útil extraída después de síndrome y corrección."
+                      state={result ? "done" : "waiting"}
+                    >
+                      <BitGrid
+                        bits={result ? unpackBits(result.decoded.bits, result.decoded.length) : null}
+                        metadata={result?.decoded.metadata}
+                        emptyHint="Resultado de la corrección de errores."
+                        onBitClick={result ? (i) => setInspect({ kind: "bit", mode: "decode", which: "decoded", index: i }) : undefined}
+                      />
+                    </FlowCard>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "metrics" && (
+              <div className="stage-tabpanel" role="tabpanel" aria-label="Métricas">
+                <section className="card">
+                  <div className="card-head">
+                    <div className="left">
+                      <span className="eyebrow">verificación</span>
+                      <h2>Métricas e <span className="accent">integridad</span></h2>
+                      <p className="muted">Evidencia final del procesamiento local.</p>
+                    </div>
+                  </div>
+                  <MetricsPanel />
+                </section>
+                <BERChart />
+              </div>
+            )}
           </div>
         </div>
       </main>

@@ -148,7 +148,6 @@ export function AlgorithmProcess() {
                   <dd>{result ? step.evidence : "Pendiente de datos reales."}</dd>
                 </div>
               </dl>
-              <span className="process-cta">Ver explicación detallada →</span>
             </div>
           </div>
         );
@@ -161,23 +160,11 @@ export function AlgorithmProcess() {
         />
       </div>
       
-      <div className="mt-4 space-y-4 text-sm leading-relaxed">
-        <p>
+      <div className="algo-foot">
+        <p className="algo-foot-prose">
           La codificación usa una matriz generadora <strong>G</strong> sistemática: conserva los bits de datos y agrega paridad.
           La decodificación calcula el síndrome con <strong>H</strong>; si coincide con una columna, corrige ese bit y vuelve a verificar el bloque.
         </p>
-
-        {result && (
-          <div className={`alert ${result.metrics.errorsUncorrected === 0 ? 'ok' : 'warn'}`}>
-            <span className="ic">!</span>
-            <div>
-              Tasa efectiva {(code.rate).toFixed(3)}.{" "}
-              {mode === "encode"
-                ? "La descarga final queda como texto binario agrupado."
-                : `${result.metrics.errorsCorrected} bits corregidos y ${result.metrics.errorsUncorrected} chequeos residuales.`}
-            </div>
-          </div>
-        )}
       </div>
     </section>
   );

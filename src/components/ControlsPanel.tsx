@@ -68,31 +68,36 @@ export function ControlsPanel() {
         </span>
       </div>
 
-      <div className="pt-4 space-y-3">
+      <div className="run-stack">
         <div className="run-summary">
           <span>{file ? "entrada lista" : "falta archivo"}</span>
           <strong>{mode === "encode" ? `${code.k} datos + ${code.n - code.k} paridad` : `${code.n} bits por bloque`}</strong>
         </div>
         <button
-          className="btn primary btn-run flex items-center justify-center gap-2"
+          className="btn primary btn-run"
           onClick={() => void run()}
           disabled={!canRun}
         >
-          {running ? "Procesando…" : (
-              <>
-                <Play size={16} />
-                {mode === "encode" ? "Iniciar Codificación" : "Iniciar Decodificación"}
-              </>
+          {running ? (
+            <>
+              <span className="btn-spinner" aria-hidden />
+              Procesando…
+            </>
+          ) : (
+            <>
+              <Play size={16} />
+              {mode === "encode" ? "Iniciar codificación" : "Iniciar decodificación"}
+            </>
           )}
         </button>
 
         {result && (
           <button
-            className="btn btn-run flex items-center justify-center gap-2"
+            className="btn btn-run"
             onClick={downloadFile}
           >
             <Download size={16} />
-            {mode === "encode" ? "Descargar Codificado" : "Descargar Reconstruido"}
+            {mode === "encode" ? "Descargar codificado" : "Descargar reconstruido"}
           </button>
         )}
 
