@@ -65,7 +65,7 @@ function useScrollSpy(ids: readonly string[]): number | null {
 function Logo() {
   return (
     <div className="logo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#07111c" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#1c1208" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 12c2.5 0 2.5-7 5-7s2.5 14 5 14 2.5-7 5-7h3" />
       </svg>
     </div>
@@ -92,7 +92,7 @@ function Brand({ subtitle, onHome }: { subtitle: React.ReactNode; onHome?: () =>
 
 function Footer() {
   return (
-    <footer className="foot mt-auto pt-8">
+    <footer className="foot mt-auto">
       <div className="foot-row">
         sin backend · ningún archivo sale del navegador · algoritmo LDPC, 100% local
       </div>
@@ -260,8 +260,13 @@ function HomePage() {
       <main className="home-shell">
         <div className="home-intro">
           <span className="eyebrow">laboratorio LDPC</span>
-          <h2>Visualizá cómo un archivo gana <span className="accent">redundancia</span>, atraviesa ruido y vuelve a verificarse.</h2>
-          <p>Elegí una dirección del pipeline. Cada etapa muestra qué bits cambian, qué control se agregó y qué evidencia deja el algoritmo.</p>
+          <h2>Cómo un archivo gana <span className="accent">redundancia</span>, atraviesa ruido y vuelve a verificarse.</h2>
+          <p>Elegí una dirección del pipeline. Cada etapa muestra qué bits cambian, qué control se agregó y qué evidencia deja el algoritmo. Todo corre local, sin enviar nada al servidor.</p>
+          <div className="home-meta">
+            <span><strong>100% local</strong> · sin backend</span>
+            <span><strong>LDPC</strong> · 7/4 · 1/2 · 2/3 · 3/4</span>
+            <span><strong>Web Workers</strong> · operaciones de bits</span>
+          </div>
         </div>
         <div className="home-picker">
           <ModePicker onSelect={(m) => navigate(MODE_PATH[m])} />

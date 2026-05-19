@@ -16,7 +16,10 @@
       "Bash(python -)",
       "Bash(npx eslint *)",
       "mcp__Claude_Preview__preview_start",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "Bash(curl *)",
+      "Bash(kill %1)",
+      "Bash(tasklist)"
     ]
   }
 }
