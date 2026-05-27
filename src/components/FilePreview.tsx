@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { bitsToBytes, parseEncodedFile, unpackBits, type Bit, type EncodedFileMeta } from "../lib/bitstream/BitArray";
 import type { PipelineResult } from "../lib/pipeline";
 import { mediaKind } from "../lib/media/mediaKind";
+import { usePipelineStore } from "../store/pipelineStore";
+import { getCode } from "../lib/encoders/index";
 
 interface LoadedFile {
   name: string;
@@ -55,13 +57,15 @@ function EncodeSourcePreview({ file }: { file: LoadedFile }) {
 }
 
 function DecodeSourcePreview({ file }: { file: LoadedFile }) {
+  const codeId = usePipelineStore((s) => s.codeId);
+  const blockSize = getCode(codeId).n;
   const preview = useMemo<DecodedPreview>(() => {
     if (!file.bytes.length) return { kind: "empty" };
     const text = safeDecodeText(file.bytes);
     if (text === null) return { kind: "invalid" };
     const parsed = parseEncodedFile(text);
     if (!parsed) return { kind: "invalid" };
-    const sample = sampleBits(parsed.bits);
+    const sample = sampleBits(parsed.bits, blockSize);
     if (parsed.meta) {
       return {
         kind: "meta",
@@ -73,7 +77,7 @@ function DecodeSourcePreview({ file }: { file: LoadedFile }) {
       };
     }
     return { kind: "raw", sample, bitCount: parsed.bits.length };
-  }, [file]);
+  }, [file, blockSize]);
 
   return (
     <div className="preview">
@@ -238,9 +242,12 @@ function safeDecodeText(bytes: Uint8Array): string | null {
   }
 }
 
-function sampleBits(bits: number[]): string {
-  const limit = Math.min(bits.length, 96);
+function sampleBits(bits: number[], groupSize = 8): string {
+  // Agrupa por la longitud de bloque n del código para que cada grupo sea una
+  // palabra código completa (no medio bloque, como pasaría agrupando de a 8).
+  const size = groupSize > 0 ? groupSize : 8;
+  const limit = Math.min(bits.length, Math.max(96, size * 6));
   const groups: string[] = [];
-  for (let i = 0; i < limit; i += 8) groups.push(bits.slice(i, i + 8).join(""));
+  for (let i = 0; i < limit; i += size) groups.push(bits.slice(i, i + size).join(""));
   return groups.join(" ") + (bits.length > limit ? " …" : "");
 }

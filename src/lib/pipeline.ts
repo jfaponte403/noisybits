@@ -105,7 +105,8 @@ export async function runEncodePipeline(
 
 export async function runDecodePipeline(
   fileBytes: Uint8Array,
-  code: AnyCode
+  code: AnyCode,
+  injectErrors = 0
 ): Promise<PipelineResult> {
   const t0 = performance.now();
   const { bits: encodedBits, meta: sourceMeta } = readEncodedFile(fileBytes);
@@ -125,12 +126,19 @@ export async function runDecodePipeline(
     original.metadata![i] = (i % n) < k ? "data" : "parity";
   }
 
-  // No channel simulation in decode mode — the uploaded file is taken as the received word.
+  // El archivo subido es la palabra recibida. Opcionalmente inyectamos errores
+  // aleatorios para simular un canal ruidoso y ver al decoder corregirlos.
+  // Repartimos como máximo 1 error por bloque (el decoder corrige ~1/bloque),
+  // así la recuperación se ve de forma clara y reproducible.
   const receivedBits = encodedBits.slice();
+  const injectedPositions = pickInjectedPositions(encodedBits.length, n, injectErrors);
+  for (const p of injectedPositions) receivedBits[p] = (receivedBits[p] ^ 1) as Bit;
+
   const receivedMetadata: Record<number, BitType> = {};
   for (let i = 0; i < encodedBits.length; i++) {
     receivedMetadata[i] = (i % n) < k ? "data" : "parity";
   }
+  for (const p of injectedPositions) receivedMetadata[p] = "altered";
 
   const received: BitArray = {
     bits: packBits(receivedBits),
@@ -173,6 +181,34 @@ export async function runDecodePipeline(
       elapsedMs: t1 - t0,
     },
   };
+}
+
+/**
+ * Elige posiciones aleatorias para inyectar errores, a lo sumo una por bloque
+ * de `n` bits. Mantener ≤1 error por bloque asegura que el decoder (que corrige
+ * ~1 error por bloque) pueda repararlos todos, de modo que la demostración de
+ * recuperación sea fiable.
+ */
+function pickInjectedPositions(totalBits: number, n: number, count: number): number[] {
+  const target = Math.max(0, Math.floor(count));
+  if (target === 0 || totalBits === 0) return [];
+  const blocks = Math.floor(totalBits / n);
+  if (blocks === 0) return [];
+
+  // Barajamos los índices de bloque y tomamos uno de cada uno (offset aleatorio).
+  const blockOrder = Array.from({ length: blocks }, (_, i) => i);
+  for (let i = blockOrder.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [blockOrder[i], blockOrder[j]] = [blockOrder[j], blockOrder[i]];
+  }
+
+  const positions: number[] = [];
+  for (let i = 0; i < Math.min(target, blocks); i++) {
+    const block = blockOrder[i];
+    const offset = Math.floor(Math.random() * n);
+    positions.push(block * n + offset);
+  }
+  return positions;
 }
 
 function readEncodedFile(fileBytes: Uint8Array): { bits: Bit[]; meta: EncodedFileMeta | null } {

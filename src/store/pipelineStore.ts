@@ -30,11 +30,13 @@ interface PipelineState {
   running: boolean;
   toast: { kind: "error" | "success"; message: string } | null;
   inspect: InspectTarget | null;
+  injectErrors: number;
 
   setMode: (mode: AppMode | null) => void;
   loadFile: (file: File) => Promise<void>;
   clearFile: () => void;
   setCodeId: (id: string) => void;
+  setInjectErrors: (n: number) => void;
   run: () => Promise<void>;
   showToast: (kind: "error" | "success", message: string) => void;
   dismissToast: () => void;
@@ -49,10 +51,12 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   running: false,
   toast: null,
   inspect: null,
+  injectErrors: 0,
 
   showToast: (kind, message) => set({ toast: { kind, message } }),
   dismissToast: () => set({ toast: null }),
   setInspect: (inspect) => set({ inspect }),
+  setInjectErrors: (n) => set({ injectErrors: Math.max(0, Math.floor(n)) }),
 
   setMode: (mode) =>
     set((s) => {
@@ -77,7 +81,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   clearFile: () => set({ file: null, result: null, inspect: dropBitInspect(get().inspect) }),
 
   run: async () => {
-    const { file, codeId, mode } = get();
+    const { file, codeId, mode, injectErrors } = get();
     if (!file) {
       get().showToast("error", "Carga un archivo primero.");
       return;
@@ -89,7 +93,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
       if (mode === "encode") {
         result = await runEncodePipeline(file.bytes, code);
       } else {
-        result = await runDecodePipeline(file.bytes, code);
+        result = await runDecodePipeline(file.bytes, code, injectErrors);
       }
       set({ result, running: false, inspect: dropBitInspect(get().inspect) });
       get().showToast("success", "Procesamiento completado.");

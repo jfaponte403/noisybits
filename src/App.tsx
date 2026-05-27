@@ -6,9 +6,12 @@ import { unpackBits } from "./lib/bitstream/BitArray";
 import { MetricsPanel } from "./components/MetricsPanel";
 import { AlgorithmProcess } from "./components/AlgorithmProcess";
 import { AlgorithmTrace } from "./components/AlgorithmTrace";
+import { MessageRecovery } from "./components/MessageRecovery";
 import { BERChart } from "./components/BERChart";
 import { ModePicker } from "./components/ModePicker";
 import { LDPCExplainer, LearnButton } from "./components/LDPCExplainer";
+import { FullProcessPage } from "./components/FullProcessPage";
+import { NormativaPage } from "./components/NormativaPage";
 import { InspectorDrawer } from "./components/InspectorDrawer";
 import { getCode } from "./lib/encoders/index";
 import { Activity, BookOpen, Check, Download, FileCode2, Gauge, RadioTower, Terminal } from "lucide-react";
@@ -319,6 +322,45 @@ function HomePage() {
         </div>
         <div className="home-picker">
           <ModePicker onSelect={(m) => navigate(MODE_PATH[m])} />
+          <button
+            type="button"
+            className="mode-card fullchain-card-btn"
+            onClick={() => navigate("/proceso-completo/codificar")}
+          >
+            <div className="mc-ic">
+              <RadioTower size={20} />
+            </div>
+            <div className="mc-t">Codificación · proceso completo</div>
+            <div className="mc-d">
+              El lado del transmisor: codificación de fuente, codificación de canal y modulación de la señal.
+            </div>
+          </button>
+          <button
+            type="button"
+            className="mode-card fullchain-card-btn"
+            onClick={() => navigate("/proceso-completo/decodificar")}
+          >
+            <div className="mc-ic">
+              <RadioTower size={20} />
+            </div>
+            <div className="mc-t">Decodificación · proceso completo</div>
+            <div className="mc-d">
+              El lado del receptor: ruido del canal, demodulación, corrección de errores y mensaje recuperado.
+            </div>
+          </button>
+          <button
+            type="button"
+            className="mode-card normativa-card-btn"
+            onClick={() => navigate("/normativa")}
+          >
+            <div className="mc-ic">
+              <BookOpen size={20} />
+            </div>
+            <div className="mc-t">Normativa</div>
+            <div className="mc-d">
+              Qué dice la regulación sobre esto: radio AM en Argentina y telefonía 5G (Hanoi, Vietnam).
+            </div>
+          </button>
           <LearnButton onClick={() => navigate("/aprender")} />
         </div>
       </main>
@@ -470,6 +512,7 @@ function WorkspacePage({ pageMode }: { pageMode: AppMode }) {
             {activeTab === "pipeline" && (
               <div className="stage-tabpanel" role="tabpanel" aria-label="Pipeline">
                 <AlgorithmProcess />
+                {mode === "decode" && <MessageRecovery />}
               </div>
             )}
 
@@ -580,6 +623,10 @@ export default function App() {
       <Route path="/aprender" element={<LearnPage />} />
       <Route path="/codificar" element={<WorkspacePage pageMode="encode" />} />
       <Route path="/decodificar" element={<WorkspacePage pageMode="decode" />} />
+      <Route path="/proceso-completo" element={<Navigate to="/proceso-completo/codificar" replace />} />
+      <Route path="/proceso-completo/codificar" element={<FullProcessPage view="encode" />} />
+      <Route path="/proceso-completo/decodificar" element={<FullProcessPage view="decode" />} />
+      <Route path="/normativa" element={<NormativaPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

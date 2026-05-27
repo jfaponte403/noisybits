@@ -19,7 +19,16 @@
       "Bash(npx vitest *)",
       "Bash(curl *)",
       "Bash(kill %1)",
-      "Bash(tasklist)"
+      "Bash(tasklist)",
+      "Bash(pandoc --version)",
+      "Bash(npm root *)",
+      "Bash(python \"C:/Users/Jfapo/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/9a0193fe-22a6-4219-a844-2324f0d4e446/344fa627-5672-4e4e-95c5-8a226a61df5e/skills/docx/scripts/office/validate.py\" informe_ldpc.docx)",
+      "Bash(python -c ' *)",
+      "Bash(python \"C:/Users/Jfapo/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/9a0193fe-22a6-4219-a844-2324f0d4e446/344fa627-5672-4e4e-95c5-8a226a61df5e/skills/docx/scripts/office/soffice.py\" --headless --convert-to pdf informe_ldpc.docx)",
+      "PowerShell($p = \"C:\\\\Users\\\\Jfapo\\\\Documents\\\\Projects\\\\noisybits\\\\src\\\\components\\\\MessageRecovery.tsx\"; $lines = Get-Content $p; $lines[0..288] | Set-Content $p -Encoding utf8; \"lines now: $\\(\\(Get-Content $p\\).Count\\)\")",
+      "Bash(find /c/Users/Jfapo/AppData/Local/Temp /tmp /c/Users/Jfapo/AppData/Roaming/Claude -maxdepth 3 -type f \\\\\\( -iname \"*.jpg\" -o -iname \"*.jpeg\" -o -iname \"*.png\" \\\\\\) -newermt \"30 minutes ago\" 2>/dev/null | head -30)",
+      "Bash(find /c/Users/Jfapo/AppData/Local/Temp /tmp /c/Users/Jfapo/AppData/Roaming/Claude /c/Users/Jfapo/AppData/Local/Claude -type f \\\\\\( -iname \"*.jpg\" -o -iname \"*.jpeg\" -o -iname \"*.png\" \\\\\\) -newermt \"2 hours ago\" 2>/dev/null | head -40)",
+      "Bash(find /c/Users/Jfapo -type f \\\\\\( -iname \"*.jpg\" -o -iname \"*.jpeg\" -o -iname \"*.png\" \\\\\\) -newermt \"10 minutes ago\" 2>/dev/null | grep -v node_modules | head -40)"
     ]
   }
 }

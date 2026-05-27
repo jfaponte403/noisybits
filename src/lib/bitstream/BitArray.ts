@@ -58,6 +58,27 @@ export function bitsToGroupedBinaryText(bits: Bit[], groupSize = 8): string {
   return groups.join(" ");
 }
 
+/**
+ * Agrupa los bits por palabra de código de longitud `n`. Dentro de cada
+ * palabra separa los `k` bits de mensaje de los `n-k` bits de paridad con un
+ * espacio, y pone una palabra de código por línea. Como solo usa espacios y
+ * saltos de línea, al quitar los separadores se recuperan los bits exactos
+ * (sigue siendo parseable por `parseGroupedBinaryText`).
+ *
+ * Ej. (n=7, k=4):  "1010 110\n0011 101"
+ */
+export function bitsToCodewordText(bits: Bit[], n: number, k: number): string {
+  if (n <= 0) return bitsToGroupedBinaryText(bits);
+  const lines: string[] = [];
+  for (let i = 0; i < bits.length; i += n) {
+    const word = bits.slice(i, i + n);
+    const data = word.slice(0, k).join("");
+    const parity = word.slice(k).join("");
+    lines.push(parity.length ? `${data} ${parity}` : data);
+  }
+  return lines.join("\n");
+}
+
 export function parseGroupedBinaryText(text: string): Bit[] | null {
   const compact = text.replace(/\s+/g, "");
   if (!compact || /[^01]/.test(compact)) return null;
@@ -72,11 +93,19 @@ export interface EncodedFileMeta {
 
 const HEADER_PREFIX = "# noisybits v1";
 
-export function serializeEncodedFile(bits: Bit[], meta: EncodedFileMeta): string {
+/**
+ * Serializa el flujo codificado a texto binario.
+ *
+ * `groupSize` debe ser la longitud de bloque `n` del código (no 8): agrupar de
+ * a 8 escondería la estructura de la palabra código (p. ej. con tasa 12/24 los
+ * límites de bloque caen en múltiplos de 24, no de 8). Agrupar por `n` hace que
+ * cada grupo de la salida sea exactamente una palabra código LDPC.
+ */
+export function serializeEncodedFile(bits: Bit[], meta: EncodedFileMeta, groupSize = 8): string {
   const safeName = meta.name.replace(/[\r\n]/g, "_");
   const safeType = (meta.type || "application/octet-stream").replace(/[\r\n]/g, "_");
   const header = `${HEADER_PREFIX} name=${encodeURIComponent(safeName)} type=${encodeURIComponent(safeType)} dataBits=${meta.dataBits}`;
-  return `${header}\n${bitsToGroupedBinaryText(bits)}\n`;
+  return `${header}\n${bitsToGroupedBinaryText(bits, groupSize)}\n`;
 }
 
 export interface ParsedEncodedFile {

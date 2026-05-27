@@ -1,0 +1,267 @@
+%=========================================================================
+%  Informe de Laboratorio — Codificación y Decodificación LDPC
+%  Plantilla IEEE (IEEEtran) lista para Overleaf
+%  Universidad Francisco José de Caldas
+%=========================================================================
+\documentclass[conference]{IEEEtran}
+
+% --- Paquetes ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{url}
+\usepackage{cite}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+
+% --- Configuración de listings para fragmentos de código ---
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  showstringspaces=false,
+  columns=fullflexible,
+  language=Java
+}
+
+\begin{document}
+
+%=========================================================================
+%  TÍTULO Y AUTORES
+%=========================================================================
+\title{Codificación y Decodificación de Canal mediante Códigos LDPC}
+
+\author{
+\IEEEauthorblockN{Brayan Stiven Peña Hernández}
+\IEEEauthorblockA{Cód. 20252678043\\
+Universidad Francisco José de Caldas}
+\and
+\IEEEauthorblockN{Jhonattan Fernando Aponte Gamboa}
+\IEEEauthorblockA{Cód. 20252678026\\
+Universidad Francisco José de Caldas}
+\and
+\IEEEauthorblockN{Juan José Cita Sarmiento}
+\IEEEauthorblockA{Cód. 20252678046\\
+Universidad Francisco José de Caldas}
+}
+
+\maketitle
+
+%=========================================================================
+%  RESUMEN
+%=========================================================================
+\begin{abstract}
+Este informe presenta el diseño e implementación de una herramienta web educativa para la simulación de la cadena de comunicación digital empleando códigos de comprobación de paridad de baja densidad (LDPC, \emph{Low-Density Parity-Check}). La aplicación, completamente del lado del cliente, permite codificar y decodificar información binaria a partir de matrices generadora $G$ y de comprobación de paridad $H$ en forma sistemática. Se implementó un algoritmo de decodificación basado en el cálculo del síndrome combinado con votación por mayoría (\emph{bit-flipping}), así como una cadena completa que incorpora codificación de fuente y de canal, modulación digital (BPSK, QPSK y 16-QAM) y un canal con ruido aditivo gaussiano blanco (AWGN). Los resultados muestran que el sistema corrige errores de bit introducidos por el canal y permite visualizar métricas como la tasa de error de bit (BER), el síndrome y las posiciones corregidas, cumpliendo el objetivo didáctico de ilustrar el funcionamiento interno de los códigos LDPC.
+\end{abstract}
+
+\begin{IEEEkeywords}
+LDPC, corrección de errores, matriz de paridad, síndrome, BER, AWGN, modulación digital.
+\end{IEEEkeywords}
+
+%=========================================================================
+%  INTRODUCCIÓN
+%=========================================================================
+\section{Introducción}
+La comunicación digital sobre canales ruidosos exige mecanismos capaces de detectar y corregir los errores introducidos durante la transmisión. La codificación de canal añade redundancia controlada a la información para permitir su recuperación en el receptor sin necesidad de retransmisión \cite{shannon1948}. Entre las técnicas de corrección de errores hacia adelante (FEC), los códigos de comprobación de paridad de baja densidad (LDPC), propuestos originalmente por Gallager en 1962 \cite{gallager1962} y redescubiertos en la década de 1990, destacan por aproximarse al límite teórico de Shannon con una complejidad de decodificación razonable. Por ello se utilizan en estándares modernos como Wi-Fi (802.11n/ac), DVB-S2 y 5G NR.
+
+El presente laboratorio tiene como objetivo construir una herramienta interactiva que ilustre, paso a paso, el proceso de codificación y decodificación LDPC. A diferencia de un simulador de caja negra, la aplicación expone las matrices $G$ y $H$, el cálculo del síndrome y las decisiones de corrección, de modo que el estudiante observe directamente la relación entre la teoría algebraica y el comportamiento del sistema. La herramienta fue desarrollada como una aplicación de página única (SPA) que opera al $100\%$ en el navegador, garantizando privacidad y reproducibilidad.
+
+%=========================================================================
+%  MARCO TEÓRICO
+%=========================================================================
+\section{Marco Teórico}
+
+\subsection{Códigos de bloque lineales}
+Un código de bloque lineal $(n,k)$ transforma un mensaje de $k$ bits de información en una palabra código de $n$ bits, añadiendo $m = n-k$ bits de paridad. La tasa del código se define como $R = k/n$. La codificación se realiza mediante la matriz generadora $G$ de dimensión $k \times n$:
+\begin{equation}
+\mathbf{c} = \mathbf{d} \cdot G \pmod{2}
+\end{equation}
+donde $\mathbf{d}$ es el vector de datos y $\mathbf{c}$ la palabra código resultante, con operaciones en el cuerpo de Galois $\mathrm{GF}(2)$ (suma módulo 2, equivalente a la operación XOR).
+
+En forma \emph{sistemática}, la matriz generadora adopta la estructura $G = [\,I_k \mid P\,]$, donde $I_k$ es la matriz identidad y $P$ la submatriz de paridad. Esto garantiza que los primeros $k$ bits de la palabra código coincidan con los datos originales, facilitando su extracción en el receptor.
+
+\subsection{Matriz de comprobación de paridad}
+La matriz de comprobación de paridad $H$, de dimensión $m \times n$, cumple la relación fundamental:
+\begin{equation}
+H \cdot \mathbf{c}^{\mathsf{T}} = \mathbf{0} \pmod 2
+\end{equation}
+para toda palabra código válida. En forma sistemática se relaciona con $G$ mediante $H = [\,P^{\mathsf{T}} \mid I_m\,]$. El carácter \emph{de baja densidad} de los códigos LDPC implica que $H$ es una matriz dispersa: contiene muy pocos unos por fila y por columna, lo que reduce la complejidad de la decodificación.
+
+\subsection{Decodificación por síndrome}
+Cuando una palabra recibida $\mathbf{r}$ contiene errores, se calcula el \emph{síndrome}:
+\begin{equation}
+\mathbf{s} = H \cdot \mathbf{r}^{\mathsf{T}} \pmod 2
+\end{equation}
+Si $\mathbf{s} = \mathbf{0}$, la palabra se considera válida. En caso contrario, el patrón del síndrome indica la presencia y, potencialmente, la ubicación de los errores. Para un único error en la posición $j$, el síndrome coincide exactamente con la columna $j$ de $H$, lo que permite la corrección directa. Cuando el patrón no corresponde a una columna única, se recurre a algoritmos iterativos como el \emph{bit-flipping}, en el que se invierten los bits que participan en el mayor número de comprobaciones de paridad insatisfechas.
+
+%=========================================================================
+%  METODOLOGÍA
+%=========================================================================
+\section{Metodología e Implementación}
+
+\subsection{Arquitectura general}
+La herramienta se desarrolló en TypeScript sobre el framework React con el empaquetador Vite. Las operaciones intensivas sobre bits se delegan a \emph{Web Workers} para no bloquear la interfaz. La aplicación opera enteramente en el cliente, sin servidor ni envío de datos, lo que preserva la privacidad del usuario.
+
+\subsection{Construcción de los códigos}
+Se implementó un generador de códigos LDPC sistemáticos parametrizado por $k$ (bits de datos) y $m$ (bits de paridad). Las filas de paridad se construyen seleccionando máscaras binarias de peso creciente, evitando los vectores unitarios para mantener la baja densidad. A partir de ellas se derivan $G = [\,I_k \mid P\,]$ y $H = [\,P^{\mathsf{T}} \mid I_m\,]$. La Tabla~\ref{tab:codigos} resume los códigos disponibles, incluyendo un código didáctico $(7,4)$ definido manualmente.
+
+\begin{table}[!t]
+\caption{Códigos LDPC implementados en la herramienta}
+\label{tab:codigos}
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Etiqueta} & \textbf{$n$} & \textbf{$k$} & \textbf{Tasa $R$} \\
+\midrule
+LDPC (7,4) didáctico & 7  & 4  & 0.57 \\
+LDPC (12,8)          & 12 & 8  & 0.67 \\
+LDPC (16,8)          & 16 & 8  & 0.50 \\
+LDPC (24,8)          & 24 & 8  & 0.33 \\
+LDPC (25,20)         & 25 & 20 & 0.80 \\
+LDPC (30,25)         & 30 & 25 & 0.83 \\
+LDPC (32,24)         & 32 & 24 & 0.75 \\
+LDPC (48,42)         & 48 & 42 & 0.88 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Proceso de codificación}
+La codificación se realiza bloque a bloque. Para cada bloque de $k$ bits se calcula la palabra código aplicando la suma módulo 2 de las contribuciones de $G$, según la ecuación~(1). El último bloque se rellena con ceros (\emph{padding}) cuando la longitud de los datos no es múltiplo de $k$.
+
+\begin{lstlisting}[caption={Núcleo del codificador en GF(2).},label={lst:enc}]
+for (let j = 0; j < code.n; j++) {
+  let sum = 0;
+  for (let i = 0; i < code.k; i++) {
+    sum ^= data[i] * code.G[i][j];
+  }
+  codeword[j] = sum;
+}
+\end{lstlisting}
+
+\subsection{Proceso de decodificación}
+El decodificador implementa un esquema iterativo (hasta 10 iteraciones) que combina dos estrategias:
+\begin{enumerate}
+  \item \textbf{Corrección directa por síndrome:} si el síndrome coincide exactamente con una columna de $H$, se invierte el bit asociado (error único).
+  \item \textbf{Votación por mayoría (\emph{bit-flipping}):} en otro caso, se cuenta para cada bit el número de comprobaciones insatisfechas en que participa y se invierte el de mayor recuento.
+\end{enumerate}
+El proceso se detiene cuando el síndrome se anula (éxito) o cuando ninguna inversión mejora el resultado (atascado). Se registran las posiciones corregidas y el estado final de integridad.
+
+\subsection{Cadena de comunicación completa}
+Adicionalmente, se implementó una cadena extremo a extremo que integra: codificación de fuente (LDPC) $\rightarrow$ codificación de canal (LDPC) $\rightarrow$ modulación digital $\rightarrow$ canal AWGN $\rightarrow$ demodulación por decisión dura $\rightarrow$ decodificación de canal $\rightarrow$ decodificación de fuente. Se soportan tres esquemas de modulación, resumidos en la Tabla~\ref{tab:mod}, con mapeo Gray para 16-QAM.
+
+\begin{table}[!t]
+\caption{Esquemas de modulación implementados}
+\label{tab:mod}
+\centering
+\begin{tabular}{lcl}
+\toprule
+\textbf{Esquema} & \textbf{Bits/símbolo} & \textbf{Constelación} \\
+\midrule
+BPSK   & 1 & 2 puntos sobre el eje I \\
+QPSK   & 2 & 4 puntos en cuadratura \\
+16-QAM & 4 & Rejilla $4\times4$ (Gray) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El canal AWGN suma ruido gaussiano de desviación estándar $\sigma$ a las componentes en fase (I) y cuadratura (Q) de cada símbolo, generado mediante la transformación de Box--Muller:
+\begin{equation}
+n = \sigma \sqrt{-2\ln u}\,\cos(2\pi v), \quad u,v \sim U(0,1)
+\end{equation}
+
+%=========================================================================
+%  RESULTADOS
+%=========================================================================
+\section{Resultados y Análisis}
+
+\subsection{Métricas evaluadas}
+La herramienta calcula y muestra las siguientes métricas:
+\begin{itemize}
+  \item \textbf{BER pre-decodificación:} tasa de error de bit introducida por el canal, $\text{BER} = N_e / N$.
+  \item \textbf{BER final:} errores residuales tras la decodificación.
+  \item \textbf{Errores corregidos / no corregidos.}
+  \item \textbf{Integridad:} verificación mediante \emph{hash} SHA-256 entre el archivo original y el recuperado.
+  \item \textbf{Síndrome y posiciones corregidas} por bloque.
+\end{itemize}
+
+\subsection{Comportamiento observado}
+Las pruebas confirman que para un único error de bit por bloque la corrección directa por síndrome es exacta e inmediata, recuperando la información sin error residual. Al aumentar $\sigma$ en el canal AWGN, el número de errores por bloque crece y supera la capacidad de corrección del código, momento en el que aparecen errores residuales (BER final $>0$). Se verificó la relación esperada entre la tasa del código $R$ y su robustez: códigos de menor tasa, como el $(24,8)$ con $R=0.33$, incorporan más redundancia y toleran un mayor nivel de ruido que códigos de tasa alta como el $(48,42)$ con $R=0.88$, a costa de una mayor sobrecarga de transmisión.
+
+Respecto a la modulación, los esquemas de mayor orden (16-QAM) transmiten más bits por símbolo pero presentan mayor sensibilidad al ruido, dado que sus puntos de constelación están más próximos entre sí, incrementando la probabilidad de error en la demodulación por decisión dura frente a BPSK.
+
+\subsection{Verificación de integridad}
+La comparación de los \emph{hashes} SHA-256 del archivo original y del recuperado permitió validar de forma objetiva la integridad de la transmisión: una coincidencia exacta confirma la recuperación perfecta, mientras que cualquier diferencia evidencia errores residuales no corregidos.
+
+%=========================================================================
+%  CONCLUSIONES
+%=========================================================================
+\section{Conclusiones}
+Se diseñó e implementó con éxito una herramienta educativa interactiva que ilustra el ciclo completo de codificación y decodificación de canal mediante códigos LDPC. La exposición explícita de las matrices $G$ y $H$, del cálculo del síndrome y de las decisiones de corrección facilita la comprensión del vínculo entre la teoría algebraica en $\mathrm{GF}(2)$ y el comportamiento práctico del sistema.
+
+El algoritmo de decodificación basado en síndrome y votación por mayoría demostró ser eficaz para la corrección de errores dentro de la capacidad del código, evidenciando el compromiso fundamental entre tasa de código, redundancia y capacidad de corrección. La integración de una cadena de comunicación completa con modulación digital y canal AWGN permitió observar el impacto del ruido y del esquema de modulación sobre la tasa de error de bit.
+
+Como trabajo futuro se propone incorporar decodificación de decisión blanda mediante propagación de creencias (\emph{belief propagation}) sobre el grafo de Tanner, que ofrece un rendimiento superior al \emph{bit-flipping} de decisión dura, así como la generación de curvas BER frente a $E_b/N_0$ para una caracterización cuantitativa del desempeño.
+
+%=========================================================================
+%  EVIDENCIAS
+%=========================================================================
+\section{Evidencias}
+
+\subsection{Firmas de exposición}
+Se anexan las evidencias de las firmas de exposición de laboratorio. El laboratorio contempla tres firmas de exposición (1, 2 y 3); al momento de la entrega se cuenta con dos, quedando la tercera pendiente de registrar.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\columnwidth]{evidencias/firma_exposicion_1.jpg}
+\caption{Firma de exposición 1 --- Sesión 19/05/2026.}
+\label{fig:firma1}
+\end{figure}
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.95\columnwidth]{evidencias/firma_exposicion_2.jpg}
+\caption{Firma de exposición 2 --- Sesión 20/05/2026.}
+\label{fig:firma2}
+\end{figure}
+
+\begin{figure}[!ht]
+\centering
+% Reemplazar por la imagen de la tercera firma cuando esté disponible:
+% \includegraphics[width=0.95\columnwidth]{evidencias/firma_exposicion_3.jpg}
+\fbox{\parbox[c][4cm][c]{0.9\columnwidth}{\centering\emph{Firma de exposición 3: pendiente de registrar.}}}
+\caption{Firma de exposición 3 --- pendiente.}
+\label{fig:firma3}
+\end{figure}
+
+%=========================================================================
+%  REFERENCIAS
+%=========================================================================
+\begin{thebibliography}{1}
+
+\bibitem{shannon1948}
+C.~E. Shannon, ``A mathematical theory of communication,'' \emph{Bell System Technical Journal}, vol.~27, no.~3, pp.~379--423, 1948.
+
+\bibitem{gallager1962}
+R.~G. Gallager, ``Low-density parity-check codes,'' \emph{IRE Transactions on Information Theory}, vol.~8, no.~1, pp.~21--28, 1962.
+
+\bibitem{mackay1999}
+D.~J.~C. MacKay, ``Good error-correcting codes based on very sparse matrices,'' \emph{IEEE Transactions on Information Theory}, vol.~45, no.~2, pp.~399--431, 1999.
+
+\bibitem{lin2004}
+S.~Lin and D.~J. Costello, \emph{Error Control Coding}, 2nd~ed. Upper Saddle River, NJ: Prentice Hall, 2004.
+
+\bibitem{proakis2007}
+J.~G. Proakis and M.~Salehi, \emph{Digital Communications}, 5th~ed. New York: McGraw-Hill, 2007.
+
+\end{thebibliography}
+
+\end{document}
