@@ -201,9 +201,9 @@ function CodewordGrid({
 }
 
 /** Tope de tamaño para la cadena síncrona (cualquier archivo hasta este tamaño). */
-const MAX_BYTES = 1024 * 1024;
+const MAX_BYTES = 256 * 1024;
 /** Etiqueta legible del tope de tamaño. */
-const MAX_LABEL = "1 MB";
+const MAX_LABEL = "256 KB";
 /** Máximo de puntos dibujados en la constelación (el cálculo usa todos). */
 const MAX_PLOT = 1500;
 
